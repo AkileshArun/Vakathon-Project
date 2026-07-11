@@ -870,69 +870,65 @@ function renderChat(){
         ${m.sender==="bot"?marked.parse(m.text):m.text.replace(/</g,"&lt;")}</div></div>`).join("");
   $("chatFeed").scrollTo(0,1e9);
 }
-/* Assemble EVERYTHING the coach needs: all fish, all waters (mercury/pH/score/advisory),
-   the safety verdict for the current group, and the user's full catch log. */
-function buildCoachContext(){
+/* Build a short context block so Gemini can answer cheaply and consistently. */
+function buildCoachContext(q){
   const group = acct?.group || "general";
   const groupLabel = (GROUPS.find(g=>g.id===group)||GROUPS[0]).label;
-  const fishLines = Object.keys(FISH).map(f=>{
-    const x=FISH[f];
-    return `- ${f} (${x.sci}): baseline mercury ${x.hg} ppm; pH pref ${x.phPref}; bait: ${x.bait}; eating: ${x.eat}`;
-  }).join("\n");
-  const waterLines = WATERS.map(w=>{
-    const perFish = Object.keys(FISH).map(f=>{
-      const v = verdictFor(f, w, group);
-      return `${f}: ${v.hg}ppm Hg, ${v.title} (${v.servings})`;
-    }).join("; ");
-    return `• ${w.name} (${w.kind}) — score ${w.score}/100, pH ~${w.phBase}, Hg factor ${w.hgFactor}x.${w.note?" Advisory: "+w.note:""}${w.official?" Official: "+w.official:""}\n    Fish here → ${perFish}`;
-  }).join("\n");
+  const ql = (q||"").toLowerCase();
+  const fishHit = Object.keys(FISH).find(f => ql.includes(f.toLowerCase()) || ql.includes(f.split(" ")[0].toLowerCase()));
+  const waterHit = WATERS.find(w => ql.includes(w.name.toLowerCase().split(" (")[0].toLowerCase()));
+  const parts = [];
+  parts.push(`User group: ${groupLabel}. Keep replies short, plain, and under 80 words.`);
+  if (fishHit){
+    const f = FISH[fishHit];
+    const w = waterHit || WATERS.find(w=>w.id==($("statWater").value)) || WATERS[0];
+    const v = verdictFor(fishHit, w, group);
+    parts.push(`Relevant fish: ${fishHit} (${f.sci}). Baseline mercury ${f.hg} ppm. In ${w.name}, mercury is ${v.hg} ppm and verdict is ${v.title}. pH around ${w.phBase}.`);
+  } else if (waterHit){
+    const bestFish = Object.keys(FISH).filter(f=>verdictFor(f,waterHit,group).level==="safe").slice(0,3).join(", ");
+    parts.push(`Relevant water: ${waterHit.name} (${waterHit.kind}). Score ${waterHit.score}/100. pH around ${waterHit.phBase}. Best simple fish here: ${bestFish||"small panfish"}.`);
+  } else {
+    const top = visibleWaters().slice().sort((a,b)=>b.score-a.score).slice(0,3).map(w=>`${w.name} (${w.score})`).join(", ");
+    parts.push(`Nearby waters: ${top}.`);
+  }
   const catches = (data?.catches)||[];
-  const today = new Date().toDateString();
-  const todayCount = catches.filter(c=> new Date(c.date).toDateString()===today).length;
-  const logLines = catches.length
-    ? catches.map(c=>`- ${c.species}${c.scientific?` (${c.scientific})`:""}, ${new Date(c.date).toLocaleDateString()} ${new Date(c.date).toLocaleTimeString()}${c.weight?`, ${c.weight} lbs`:""}${c.length?`, ${c.length} in`:""}${c.notes?`, note: ${c.notes}`:""}`).join("\n")
-    : "(no catches logged yet)";
-  const species = new Set(catches.map(c=>c.species)).size;
-  const heaviest = catches.reduce((m,c)=>c.weight&&c.weight>m?c.weight:m,0);
-  return `=== SUNKEN.AI DATA (source of truth — use this to answer) ===
-CURRENT USER: ${acct?.name||"Angler"} · group: ${groupLabel} (safety thresholds adjust for this group)
-FDA reference: mercury action level 1.0 ppm; safe <0.15, limit 0.15-0.46, avoid >0.46 (stricter for sensitive groups).
-
-FISH SPECIES:
-${fishLines}
-
-WATERS & COMPUTED SAFETY (mercury already scaled by each water's factor):
-${waterLines}
-
-USER CATCH LOG (${catches.length} total; ${species} species; heaviest ${heaviest||"—"} lbs; caught today: ${todayCount}):
-${logLines}
-=== END DATA ===`;
+  if (catches.length){
+    const today = new Date().toDateString();
+    const todayCount = catches.filter(c=>new Date(c.date).toDateString()===today).length;
+    parts.push(`User catch log: ${catches.length} total, ${todayCount} today, latest ${catches[catches.length-1].species}.`);
+  }
+  return parts.join("\n");
 }
 
 async function sendChat(){
   const text=$("chatInput").value.trim(); if(!text) return;
   data.chat.push({sender:"user",text}); $("chatInput").value=""; renderChat();
   if (!cfg.gemini){
-    // hardcoded offline path
     data.chat.push({ sender:"bot", text: offlineReply(text) });
     saveData(); renderChat(); return;
   }
   data.chat.push({sender:"bot",text:"_…thinking_"}); renderChat();
   try{
-    const MODEL="gemini-flash-latest";
+    const MODEL="gemini-2.0-flash-lite";
     const url=`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${cfg.gemini}`;
-    const prompt=`You are Fish Coach for the Sunken.AI app. Warm, concise, emojis ok.
-You have COMPLETE access to the app's data below — always use it as the source of truth. When asked whether a fish is safe to eat from a location, look up that fish in that water in the data, cite its mercury (ppm) and the water's pH, and give the verdict and servings shown. When asked about the user's catches (e.g. "how many did I catch today"), count from the USER CATCH LOG. If the data doesn't cover something, say so rather than guessing. For safety, note it's informational, not medical advice.
+    const prompt=`You are Fish Coach for Sunken.AI.
+Reply in plain English, 1 short paragraph or 2 short sentences, under 80 words. Use the facts below if relevant. If asked about safety, say safe/limit/avoid and give one simple serving tip. If you are unsure, say so plainly.
 
-${buildCoachContext()}
+Facts:
+${buildCoachContext(text)}
 
 User question: ${text}`;
-    const res=await fetch(url,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{ temperature:0.7, maxOutputTokens:1024 } }) });
+    const res=await fetch(url,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{ temperature:0.2, topP:0.9, maxOutputTokens:180 } }) });
     if(!res.ok){ throw new Error(res.status===403?"key rejected (403)":"HTTP "+res.status); }
-    const d=await res.json(); data.chat[data.chat.length-1]={sender:"bot",text:d?.candidates?.[0]?.content?.parts?.[0]?.text||offlineReply(text)};
+    const d=await res.json();
+    const rawText = d?.candidates?.[0]?.content?.parts?.map(p=>p.text).join("") || "";
+    const finishReason = d?.candidates?.[0]?.finishReason;
+    if (!rawText || finishReason === "MAX_TOKENS" || finishReason === "RECITATION" || finishReason === "SAFETY"){
+      throw new Error("incomplete response");
+    }
+    data.chat[data.chat.length-1]={sender:"bot",text:rawText.trim() || offlineReply(text)};
   }catch(err){
-    // graceful fallback to offline brain
-    data.chat[data.chat.length-1]={sender:"bot",text:"_(Gemini unavailable — using offline coach)_\n\n"+offlineReply(text)};
+    data.chat[data.chat.length-1]={sender:"bot",text:offlineReply(text)};
   }
   saveData(); renderChat();
 }
