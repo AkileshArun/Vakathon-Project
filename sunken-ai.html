@@ -170,9 +170,6 @@
         <i data-lucide="map" class="h-4 w-4" style="color:var(--accent)"></i>
         <h3 class="text-sm font-black uppercase tracking-widest sub">Waters &amp; Spots</h3>
         <div class="ml-auto flex items-center gap-2">
-          <select id="regionSel" class="rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2 py-1.5 text-xs font-bold outline-none">
-            <option value="bay">Bay Area (demo)</option><option value="all">All waters</option>
-          </select>
           <select id="mapStyle" class="rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2 py-1.5 text-xs font-bold outline-none">
             <option value="dark">Dark</option><option value="light">Light</option><option value="topo">Terrain</option><option value="sat">Satellite</option>
           </select>
@@ -199,10 +196,24 @@
         <h3 class="text-sm font-black uppercase tracking-widest sub">Scan a Fish</h3>
         <span id="scanEngine" class="ml-auto rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest"></span>
       </div>
+      <div class="mt-3 inline-flex rounded-lg border border-[var(--line)] bg-[var(--panel2)] p-0.5 text-xs font-bold">
+        <button id="modeUpload" class="rounded-md px-3 py-1.5">📁 Upload</button>
+        <button id="modeCamera" class="rounded-md px-3 py-1.5 sub">📷 Camera</button>
+      </div>
       <label id="scanDrop" class="scan-drop mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[var(--line)] px-4 py-10 text-center">
         <i data-lucide="image-plus" class="h-8 w-8 sub"></i><p class="text-sm font-bold">Tap to choose a photo</p>
         <p class="text-xs sub">or drag &amp; drop · JPG / PNG</p><input id="scanInput" type="file" accept="image/*" class="hidden" />
       </label>
+      <div id="cameraWrap" class="mt-4 hidden">
+        <div class="relative overflow-hidden rounded-xl border border-[var(--line)] bg-black">
+          <video id="camVideo" class="max-h-72 w-full object-contain" autoplay playsinline muted></video>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <button id="camCapture" class="flex flex-1 items-center justify-center gap-2 rounded-lg py-3 text-sm font-black text-white" style="background:var(--accent)"><i data-lucide="camera" class="h-4 w-4"></i> Capture photo</button>
+          <button id="camStop" class="rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-4 text-sm font-bold sub">Stop</button>
+        </div>
+        <p id="camMsg" class="mt-2 text-center text-[11px] sub">Point at your fish and tap Capture.</p>
+      </div>
       <div id="scanPreviewWrap" class="mt-4 hidden">
         <div class="relative overflow-hidden rounded-xl border border-[var(--line)]"><img id="scanPreview" class="max-h-72 w-full object-contain" style="background:var(--panel2)" alt="Selected fish" /></div>
         <div class="mt-3 flex gap-2">
@@ -226,6 +237,7 @@
       </div>
       <select id="statWater" class="mt-3 w-full rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-3 py-2.5 text-sm font-bold outline-none"></select>
     </div>
+    <div id="officialDesc" class="mt-3"></div>
     <div id="verdict" class="mt-3"></div>
     <div class="mt-3 grid grid-cols-3 gap-2" id="metricCards"></div>
 
@@ -437,26 +449,26 @@ const GROUP_FACTOR = { general:1, sensitive:0.5, child:0.5, senior:0.8 };
    region:"bay" flags the demo set. advisory:true when a real OEHHA-style notice exists. */
 const WATERS = [
   // --- Cupertino / South Bay ---
-  { id:1,  name:"Stevens Creek Reservoir", lat:37.2986, lng:-122.0772, kind:"Reservoir", region:"bay", score:74, hgFactor:1.6, phBase:7.2, note:"OEHHA advisory: limit intake (mercury/PCBs)." },
+  { id:1,  name:"Stevens Creek Reservoir", lat:37.2986, lng:-122.0772, kind:"Reservoir", region:"bay", score:74, hgFactor:1.6, phBase:7.2, note:"OEHHA advisory: limit intake (mercury/PCBs).", official:"Set in the Santa Cruz Mountain foothills west of Cupertino, this 1935 reservoir sits in a county park with catch-and-release fishing, kayaking, and hiking. California's OEHHA has issued a safe-eating advisory here: mercury (and some PCBs) build up in the fish, so state guidance is to avoid black bass and crappie and limit carp and sucker to about a serving a week — stricter for kids and women under 50." },
   { id:2,  name:"Vasona Lake",             lat:37.2424, lng:-121.9680, kind:"Lake",      region:"bay", score:71, hgFactor:1.0, phBase:7.4, note:"Family park; catch-and-release trout." },
-  { id:3,  name:"Lexington Reservoir",     lat:37.1836, lng:-121.9905, kind:"Reservoir", region:"bay", score:80, hgFactor:1.4, phBase:7.1, note:"Bass & crappie; non-powered boats." },
-  { id:4,  name:"Sandy Wool Lake",         lat:37.4712, lng:-121.8613, kind:"Lake",      region:"bay", score:77, hgFactor:0.9, phBase:7.5, note:"Ed Levin Park; stocked catfish/trout." },
-  { id:5,  name:"Cottonwood Lake",         lat:37.2775, lng:-121.8110, kind:"Lake",      region:"bay", score:76, hgFactor:0.8, phBase:7.4, note:"Hellyer Park; stocked trout Nov–Apr." },
-  { id:6,  name:"Almaden Lake",            lat:37.2377, lng:-121.8760, kind:"Lake",      region:"bay", score:63, hgFactor:1.7, phBase:7.0, note:"Historic mercury mining nearby — advisory." },
+  { id:3,  name:"Lexington Reservoir",     lat:37.1836, lng:-121.9905, kind:"Reservoir", region:"bay", score:80, hgFactor:1.4, phBase:7.1, note:"Bass & crappie; non-powered boats.", official:"A Santa Clara County reservoir in the Los Gatos hills popular for bass and crappie, open to non-powered boats. Like several South Bay reservoirs, mercury from historic mining settles into the food chain, so larger predatory fish carry more — favor smaller panfish and follow county advisories." },
+  { id:4,  name:"Sandy Wool Lake",         lat:37.4712, lng:-121.8613, kind:"Lake",      region:"bay", score:77, hgFactor:0.9, phBase:7.5, note:"Ed Levin Park; stocked catfish/trout.", official:"A stocked lake inside Ed R. Levin County Park near Milpitas, regularly planted with catfish and trout and beginner-friendly. A California fishing license is required for anglers 16+." },
+  { id:5,  name:"Cottonwood Lake",         lat:37.2775, lng:-121.8110, kind:"Lake",      region:"bay", score:76, hgFactor:0.8, phBase:7.4, note:"Hellyer Park; stocked trout Nov–Apr.", official:"A small lake in Hellyer County Park stocked with rainbow trout in the cooler months (roughly November–April) and good for families and shore fishing." },
+  { id:6,  name:"Almaden Lake",            lat:37.2377, lng:-121.8760, kind:"Lake",      region:"bay", score:63, hgFactor:1.7, phBase:7.0, note:"Historic mercury mining nearby — advisory.", official:"A San Jose lake near the historic New Almaden mercury mines — the very source of much of the Bay's mercury. Fish here carry elevated methylmercury, so county and OEHHA advisories urge limiting or avoiding certain species; treat it as catch-and-release-friendly." },
   // --- San Ramon / East Bay ---
   { id:7,  name:"Lake Cascade (San Ramon)",lat:37.7405, lng:-121.9611, kind:"Pond",      region:"bay", score:69, hgFactor:0.9, phBase:7.5, note:"Quiet neighborhood lake; bluegill/bass." },
-  { id:8,  name:"Del Valle Reservoir",     lat:37.5860, lng:-121.7010, kind:"Reservoir", region:"bay", score:88, hgFactor:1.1, phBase:7.6, note:"Livermore; stocked trout, striper, catfish." },
-  { id:9,  name:"Shadow Cliffs Lake",      lat:37.6663, lng:-121.8460, kind:"Lake",      region:"bay", score:82, hgFactor:1.0, phBase:7.5, note:"Pleasanton; former quarry, stocked." },
-  { id:10, name:"Quarry Lakes",            lat:37.5688, lng:-121.9860, kind:"Lake",      region:"bay", score:79, hgFactor:1.0, phBase:7.4, note:"Fremont; trout & catfish stocked." },
+  { id:8,  name:"Del Valle Reservoir",     lat:37.5860, lng:-121.7010, kind:"Reservoir", region:"bay", score:88, hgFactor:1.1, phBase:7.6, note:"Livermore; stocked trout, striper, catfish.", official:"A 750-acre reservoir in the hills south of Livermore, considered one of the region's best fisheries. The East Bay Regional Park District stocks rainbow trout (fall–spring) and channel catfish (summer), and it also holds largemouth, smallmouth and striped bass plus panfish. Anglers 16+ need a state license and a District permit; boats require a mussel inspection." },
+  { id:9,  name:"Shadow Cliffs Lake",      lat:37.6663, lng:-121.8460, kind:"Lake",      region:"bay", score:82, hgFactor:1.0, phBase:7.5, note:"Pleasanton; former quarry, stocked.", official:"A former gravel quarry near downtown Pleasanton reborn as an 80-acre clear-water fishery. Trout and catfish are stocked weekly (cooler months for trout), with big largemouth bass and bluegill also on offer — the lake has produced record-class fish. Electric motors only; a state license and District permit are required." },
+  { id:10, name:"Quarry Lakes",            lat:37.5688, lng:-121.9860, kind:"Lake",      region:"bay", score:79, hgFactor:1.0, phBase:7.4, note:"Fremont; trout & catfish stocked.", official:"A chain of former quarry pits in Fremont/Union City managed by the East Bay Regional Park District. Horseshoe Lake is stocked with trout and catfish; lead tackle is banned here (free steel swaps at the kiosk). State license plus District permit required for anglers 16+." },
   { id:11, name:"Los Vaqueros Reservoir",  lat:37.8330, lng:-121.7300, kind:"Reservoir", region:"bay", score:90, hgFactor:1.2, phBase:7.6, note:"Brentwood; bass, striper, catfish." },
-  { id:12, name:"Contra Loma Reservoir",   lat:37.9640, lng:-121.7830, kind:"Reservoir", region:"bay", score:75, hgFactor:1.3, phBase:7.3, note:"Antioch; stocked trout & catfish." },
+  { id:12, name:"Contra Loma Reservoir",   lat:37.9640, lng:-121.7830, kind:"Reservoir", region:"bay", score:75, hgFactor:1.3, phBase:7.3, note:"Antioch; stocked trout & catfish.", official:"An 80-acre reservoir in an Antioch regional park stocked with trout and catfish, also holding bass, bluegill and sunfish. Electric motor boats only; note the park district's invasive-mussel inspection rules." },
   // --- other demo waters ---
   { id:13, name:"Kenai Lake (AK)",         lat:60.4,    lng:-149.8,    kind:"Lake",      region:"all", score:96, hgFactor:0.6, phBase:7.8, note:"Pristine glacial lake." },
-  { id:14, name:"Gold Run Reservoir",      lat:39.1911, lng:-120.9,    kind:"Reservoir", region:"all", score:52, hgFactor:2.1, phBase:6.6, note:"Gold-rush legacy mercury — high." },
+  { id:14, name:"Gold Run Reservoir",      lat:39.1911, lng:-120.9,    kind:"Reservoir", region:"all", score:52, hgFactor:2.1, phBase:6.6, note:"Gold-rush legacy mercury — high.", official:"A Sierra reservoir in gold-country. Gold Rush miners used liquid mercury to extract gold, and that legacy contamination still drives high mercury in fish here — a vivid example of why big, old predators should be eaten sparingly, if at all." },
   { id:15, name:"Clearwater Pond (VT)",    lat:44.2619, lng:-72.5806,  kind:"Pond",      region:"all", score:84, hgFactor:0.7, phBase:7.4, note:"Clean New England pond." },
 ];
 let currentRegion = "bay";
-function visibleWaters(){ return currentRegion==="all" ? WATERS : WATERS.filter(w=>w.region==="bay"); }
+function visibleWaters(){ return WATERS.filter(w=>w.region==="bay"); }
 
 function seededRand(seed){ let x=Math.sin(seed)*10000; return x-Math.floor(x); }
 function effectiveHg(fishName, water){ return +(FISH[fishName].hg * water.hgFactor).toFixed(3); }
@@ -489,6 +501,7 @@ function go(tab){
   if (tab==="map") setTimeout(()=>map.invalidateSize(), 60);
   if (tab==="coach") setTimeout(()=> $("chatFeed").scrollTo(0,1e9), 40);
   if (tab==="stats") startStats(); else stopStatsStream();
+  if (tab!=="scan" && typeof stopCamera==="function") stopCamera();
 }
 document.querySelectorAll(".tabbar-btn").forEach(b => b.addEventListener("click", ()=>go(b.dataset.tab)));
 document.querySelectorAll("[data-goto]").forEach(b => b.addEventListener("click", ()=>go(b.dataset.goto)));
@@ -509,7 +522,7 @@ $("quickActions").querySelectorAll("[data-goto]").forEach(b => b.addEventListene
 /* ===================== map + routing ===================== */
 const scoreColor = s => s>=85?"var(--good)":s>=75?"var(--accent)":s>=60?"var(--warn)":"var(--hot)";
 const scoreLabel = s => s>=85?"Safe":s>=75?"Fine":s>=60?"Mild":"Caution";
-function safetyColorForWater(w){ const v=verdictFor("Largemouth Bass", w, "general"); return v.level==="safe"?"#5ad19a":v.level==="limit"?"#f1c343":"#f16a6a"; }
+function safetyColorForWater(w){ return scoreColor(w.score); }
 
 let map, tileLayer, meMarker=null, homePos=null, selectedSpot=null;
 const TILES = {
@@ -538,8 +551,6 @@ function initMap(){
   map.on("click", ()=> window._deselect());
 }
 $("mapStyle").addEventListener("change", e=>setMapStyle(e.target.value));
-$("regionSel").addEventListener("change", e=>{ currentRegion=e.target.value; renderMarkers(); renderSpotList();
-  const b=L.latLngBounds(visibleWaters().map(w=>[w.lat,w.lng])); if(b.isValid()) map.fitBounds(b.pad(0.2)); });
 
 function setHome(lat,lng,label){
   homePos = { lat, lng, label:label||"Your start" };
@@ -559,12 +570,18 @@ function haversine(a,b){ const dLat=(b.lat-a.lat)*Math.PI/180, dLng=(b.lng-a.lng
   la1=a.lat*Math.PI/180, la2=b.lat*Math.PI/180;
   const h=Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;
   return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)); }
-window._safety = function(waterId){
-  const w = WATERS.find(x=>x.id==waterId); if(!w) return;
+function switchToSafetyForWater(waterId){
+  const w = WATERS.find(x=>x.id==waterId); if(!w) return false;
   if($("statWater")){ $("statWater").value = String(w.id); }
   go("stats");
+  requestAnimationFrame(()=>{
+    if($("statWater")){ $("statWater").value = String(w.id); }
+    if(typeof renderStats === "function") renderStats();
+  });
   toast(`Safety for ${w.name}`,"info");
-};
+  return true;
+}
+window._safety = function(waterId){ return switchToSafetyForWater(waterId); };
 window._select = function(waterId){
   const w = WATERS.find(x=>x.id==waterId); if(!w) return;
   selectedSpot = w;
@@ -703,6 +720,22 @@ function renderVerdict(){
   const { fishName, water } = currentFishWater();
   const group = acct?.group || "general";
   const v = verdictFor(fishName, water, group);
+  // official researched description panel
+  const od = $("officialDesc");
+  if(od){
+    if(water.official){
+      od.innerHTML = `<div class="card p-4">
+        <div class="flex items-center gap-2"><i data-lucide="landmark" class="h-4 w-4" style="color:var(--accent)"></i>
+          <h3 class="text-sm font-black">About ${water.name}</h3>
+          <span class="ml-auto rounded-full px-2 py-0.5 text-[10px] font-black" style="background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)">official sources</span></div>
+        <p class="mt-2 text-sm sub leading-relaxed">${water.official}</p>
+        <p class="mt-2 text-[10px] sub">Summarized from OEHHA public info. Always check the current official advisory before eating your catch.</p>
+      </div>`;
+    } else {
+      od.innerHTML = `<div class="card p-3"><p class="text-xs sub">📍 ${water.name}${water.note?` — ${water.note}`:""}. No detailed official write-up on file for this spot yet.</p></div>`;
+    }
+    if(window.lucide) lucide.createIcons();
+  }
   const vc = v.level==="safe"?"v-safe":v.level==="limit"?"v-limit":"v-avoid";
   const vcolor = v.level==="safe"?"var(--good)":v.level==="limit"?"var(--warn)":"var(--hot)";
   $("verdict").innerHTML = `<div class="verdict ${vc}">
@@ -764,7 +797,7 @@ function offlineReply(qRaw){
 
   if (waterHit){
     const bestFish = Object.keys(FISH).filter(f=>verdictFor(f,waterHit,acct?.group||"general").level==="safe").slice(0,4);
-    return `**${waterHit.name}** (${waterHit.kind})\n\n🐟 Fishing score: **${waterHit.score}/100** (${scoreLabel(waterHit.score)})\n${waterHit.note?("📍 "+waterHit.note+"\n"):""}\n✅ **Safest to keep here:** ${bestFish.join(", ")||"choose smaller, younger fish"}\n\nTap **Route** on the map to get directions and drive time.`;
+    return `**${waterHit.name}** (${waterHit.kind})\n\n${waterHit.official?waterHit.official+"\n\n":""}🐟 Fishing score: **${waterHit.score}/100** (${scoreLabel(waterHit.score)})\n${waterHit.note?("📍 "+waterHit.note+"\n"):""}\n✅ **Safest to keep here:** ${bestFish.join(", ")||"choose smaller, younger fish"}\n\nOpen the **Map** tab and tap this spot for Google Maps directions.`;
   }
 
   // topic answers
@@ -860,6 +893,49 @@ function loadScanFile(file){ if(!file.type.startsWith("image/")){ toast("Choose 
   img.onerror=()=>{ URL.revokeObjectURL(tmp); }; img.src=tmp;
 }
 $("scanClear").addEventListener("click",()=>{ scanFile=null; scanDataUrl=null; scanInput.value=""; $("scanPreviewWrap").classList.add("hidden"); $("scanResult").classList.add("hidden"); drop.classList.remove("hidden"); });
+
+/* ---- webcam capture ---- */
+let camStream=null;
+function setScanMode(mode){
+  const up=$("modeUpload"), cam=$("modeCamera");
+  if(mode==="camera"){
+    up.classList.add("sub"); up.style.background=""; cam.classList.remove("sub"); cam.style.background="var(--panel)";
+    drop.classList.add("hidden"); $("scanPreviewWrap").classList.add("hidden"); $("cameraWrap").classList.remove("hidden");
+    startCamera();
+  } else {
+    cam.classList.add("sub"); cam.style.background=""; up.classList.remove("sub"); up.style.background="var(--panel)";
+    $("cameraWrap").classList.add("hidden"); stopCamera();
+    if(!scanFile) drop.classList.remove("hidden");
+  }
+}
+async function startCamera(){
+  if(camStream) return;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ $("camMsg").textContent="Camera not supported in this browser — use Upload instead."; return; }
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" }, audio:false });
+    $("camVideo").srcObject = camStream; $("camMsg").textContent="Point at your fish and tap Capture.";
+  }catch(err){
+    $("camMsg").textContent = "Couldn't open the camera (permission denied or no camera). Use Upload instead.";
+    toast("Camera access blocked","warn");
+  }
+}
+function stopCamera(){ if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; const v=$("camVideo"); if(v) v.srcObject=null; } }
+$("modeUpload").addEventListener("click", ()=>setScanMode("upload"));
+$("modeCamera").addEventListener("click", ()=>setScanMode("camera"));
+$("camStop").addEventListener("click", ()=>setScanMode("upload"));
+$("camCapture").addEventListener("click", ()=>{
+  const v=$("camVideo"); if(!v || !v.videoWidth){ toast("Camera not ready yet","warn"); return; }
+  const c=document.createElement("canvas"); c.width=v.videoWidth; c.height=v.videoHeight;
+  c.getContext("2d").drawImage(v,0,0,c.width,c.height);
+  c.toBlob(blob=>{
+    if(!blob){ toast("Capture failed","err"); return; }
+    const file=new File([blob],"camera-"+Date.now()+".jpg",{ type:"image/jpeg" });
+    stopCamera(); $("cameraWrap").classList.add("hidden");
+    setScanMode("upload");            // return toggle to upload state
+    loadScanFile(file);               // flows into the SAME Gemini scan pipeline
+    toast("Captured! Tap Identify Fish 📸","ok");
+  }, "image/jpeg", 0.9);
+});
 $("scanBtn").addEventListener("click", async ()=>{
   if(!scanFile) return;
   $("scanStatus").classList.remove("hidden"); $("scanStatus").classList.add("flex"); $("scanResult").classList.add("hidden");
@@ -1238,7 +1314,7 @@ $("logoInput") && $("logoInput").addEventListener("change", async e=>{
 $("logoClear") && $("logoClear").addEventListener("click", ()=>{ appLogo=null; store.del("sunken_logo"); applyLogo(); toast("Logo reset","info"); });
 
 /* ===================== boot ===================== */
-applyTheme(); initMap(); renderSpotList(); buildStatsControls(); updateScanEngine(); updateApiRail(); lucide.createIcons(); pingProxy(); applyLogo();
+applyTheme(); initMap(); renderSpotList(); buildStatsControls(); updateScanEngine(); updateApiRail(); lucide.createIcons(); pingProxy(); applyLogo(); setScanMode("upload");
 const resume = accounts.find(a=>a.id===store.get("fishai_active", null));
 if(resume) enterAccount(resume); else openOnboarding();
 </script>
