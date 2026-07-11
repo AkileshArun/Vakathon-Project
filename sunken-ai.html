@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sunken.AI</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+
+<style>
+  :root{ --bg:#10141a; --panel:#151b22; --panel2:#232c3a; --line:#2a3644; --text:#e7edf3; --sub:#94a3b8;
+         --accent:#43b0f1; --good:#5ad19a; --warn:#f1c343; --hot:#f16a6a; }
+  body.light{ --bg:#eaf4fb; --panel:#ffffff; --panel2:#e3f0fa; --line:#c5ddef; --text:#0d2a41; --sub:#5a7690;
+              --accent:#1f8fd0; --good:#1f9e6a; --warn:#c78a12; --hot:#d9534f; }
+  html,body{ background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; transition:background .25s,color .25s; }
+  .mono{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  ::-webkit-scrollbar{ width:9px; height:9px; } ::-webkit-scrollbar-track{ background:var(--bg); } ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:8px; }
+
+  .tabbar-btn.active{ color:var(--accent); } .tabbar-btn.active .tb-icon{ transform:scale(1.12); } .tb-icon{ transition:transform .15s; }
+  .screen{ display:none; } .screen.active{ display:block; animation:fade .25s ease; }
+  @keyframes fade{ from{ opacity:0; transform:translateY(6px);} to{ opacity:1; transform:none; } }
+
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; }
+  .sub{ color:var(--sub); }
+
+  .msg-bot{ background:var(--panel2); border-top-left-radius:4px; }
+  .msg-user{ background:var(--panel2); border-top-right-radius:4px; }
+  @supports (background: color-mix(in srgb, red 50%, blue)){ .msg-user{ background:color-mix(in srgb, var(--accent) 20%, var(--panel2)); } }
+  .msg-bot :is(p,li){ color:var(--text); } .msg-bot strong{ color:var(--accent); }
+  .msg-bot h1,.msg-bot h2,.msg-bot h3{ color:var(--accent); font-weight:800; margin:.3rem 0; }
+  .msg-bot code{ background:color-mix(in srgb, var(--text) 10%, transparent); padding:1px 5px; border-radius:5px; }
+
+  .leaflet-container{ background:var(--bg); font:inherit; }
+  .leaflet-control-attribution{ background:color-mix(in srgb,var(--panel) 70%, transparent)!important; color:var(--sub)!important; }
+  .leaflet-control-attribution a{ color:var(--accent)!important; }
+  .spot-pin{ display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50% 50% 50% 0;
+             transform:rotate(-45deg); border:2px solid var(--panel); box-shadow:0 2px 8px rgba(0,0,0,.35); font-weight:900; font-size:10px; color:#08131c; }
+  .spot-pin span{ transform:rotate(45deg); }
+  .me-pin{ width:16px; height:16px; border-radius:50%; background:var(--accent); border:3px solid #fff; box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 35%,transparent); }
+  .home-pin{ width:18px; height:18px; border-radius:4px; background:var(--good); border:3px solid #fff; box-shadow:0 0 0 4px color-mix(in srgb,var(--good) 35%,transparent); }
+
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .spinner{ width:22px; height:22px; border:3px solid color-mix(in srgb,var(--text) 25%,transparent); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+
+  .drawer{ transition:transform .3s cubic-bezier(.2,.9,.3,1); }
+  .drawer.closed{ transform:translateX(100%); }
+  @keyframes toastIn{ from{ transform:translateY(12px); opacity:0;} to{ transform:none; opacity:1; } }
+  .toast{ animation:toastIn .25s ease-out; }
+
+  .scan-drop.drag{ border-color:var(--accent); background:color-mix(in srgb,var(--accent) 8%,transparent); }
+  .accuracy-bar{ height:6px; border-radius:999px; background:color-mix(in srgb,var(--text) 12%,transparent); overflow:hidden; }
+  .accuracy-fill{ height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent),var(--good)); }
+
+  .verdict{ border-radius:16px; padding:18px; border:1px solid; }
+  .v-safe{ background:color-mix(in srgb,var(--good) 12%,transparent); border-color:color-mix(in srgb,var(--good) 45%,transparent); }
+  .v-limit{ background:color-mix(in srgb,var(--warn) 14%,transparent); border-color:color-mix(in srgb,var(--warn) 45%,transparent); }
+  .v-avoid{ background:color-mix(in srgb,var(--hot) 14%,transparent); border-color:color-mix(in srgb,var(--hot) 45%,transparent); }
+
+  #onboard{ position:fixed; inset:0; z-index:2000; display:flex; align-items:flex-start; justify-content:center; padding:24px 16px;
+            overflow-y:auto; -webkit-overflow-scrolling:touch;
+            background:radial-gradient(120% 90% at 50% 110%, rgba(67,176,241,.18), transparent 60%), var(--bg); }
+  @keyframes cardIn{ from{ transform:translateY(18px) scale(.97); opacity:0;} to{ transform:none; opacity:1; } }
+  .onboard-card{ animation:cardIn .4s cubic-bezier(.2,.9,.3,1.15); }
+  .acct-chip{ transition:transform .15s, box-shadow .15s; } .acct-chip:hover{ transform:translateY(-2px); }
+
+  /* persistent side API rail */
+  #apiRail{ position:fixed; right:0; top:50%; transform:translateY(-50%); z-index:940;
+            writing-mode:vertical-rl; display:flex; align-items:center; gap:8px;
+            padding:14px 8px; border:1px solid var(--line); border-right:0; border-radius:12px 0 0 12px;
+            background:var(--panel); cursor:pointer; box-shadow:-4px 0 18px rgba(0,0,0,.18); transition:.15s; }
+  #apiRail:hover{ padding-right:12px; border-color:var(--accent); }
+  #apiRail .dot{ writing-mode:horizontal-tb; width:9px; height:9px; border-radius:50%; }
+</style>
+
+</head>
+
+<body class="min-h-screen pb-[76px]">
+
+
+<!-- ONBOARDING -->
+<div id="onboard">
+  <div class="onboard-card card w-full max-w-md p-7">
+    <div class="mb-5 flex items-center gap-3">
+      <div id="brandOnboard" class="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl" style="background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)">
+        <i data-lucide="fish" class="h-6 w-6" style="color:var(--accent)"></i>
+      </div>
+      <div><h1 class="text-xl font-black tracking-tight">Sunken<span style="color:var(--accent)">.AI</span></h1>
+        <p class="text-[10px] uppercase tracking-widest sub">Plan · Identify · Log · Fish Safely</p></div>
+    </div>
+    <h2 class="text-sm font-black uppercase tracking-widest">Create your angler profile</h2>
+    <p class="mt-1 text-xs sub">Saved locally on this device only. No cloud, no password, no tracking.</p>
+    <label class="mt-5 mb-1 block text-[11px] uppercase tracking-widest sub" for="obName">Your name</label>
+    <input id="obName" maxlength="24" placeholder="e.g. Alex" class="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" />
+    <label class="mt-4 mb-2 block text-[11px] uppercase tracking-widest sub">Who's fishing? <span class="normal-case">(tailors safety advice)</span></label>
+    <div id="obGroup" class="grid grid-cols-2 gap-2"></div>
+    <label class="mt-4 mb-2 block text-[11px] uppercase tracking-widest sub">Accent</label>
+    <div id="obColors" class="flex gap-2"></div>
+    <button id="obSubmit" class="mt-6 w-full rounded-lg py-3 text-sm font-black text-white" style="background:var(--accent)">Start fishing →</button>
+    <p id="obError" class="mt-2 hidden text-center text-xs" style="color:var(--hot)"></p>
+    <div id="obExisting" class="mt-5 hidden border-t border-[var(--line)] pt-4">
+      <p class="mb-2 text-[11px] uppercase tracking-widest sub">Switch to a saved profile</p>
+      <div id="obAccounts" class="flex max-h-52 flex-wrap gap-2 overflow-y-auto pr-1"></div>
+    </div>
+  </div>
+</div>
+
+<!-- TOP BAR -->
+<header class="sticky top-0 z-[900] flex items-center gap-3 border-b border-[var(--line)] bg-[var(--panel)] px-4 py-3">
+  <div id="brandHeader" class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg" style="background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)">
+    <i data-lucide="fish" class="h-5 w-5" style="color:var(--accent)"></i>
+  </div>
+  <div class="leading-tight">
+    <h1 class="text-lg font-black tracking-tight">Sunken<span style="color:var(--accent)">.AI</span></h1>
+    <p class="text-[10px] uppercase tracking-widest sub" id="topSub">Web Edition</p>
+  </div>
+  <div class="ml-auto flex items-center gap-2">
+    <button id="themeToggle" title="Toggle light/dark" class="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--line)] bg-[var(--panel2)] sub hover:border-[var(--accent)]"><i data-lucide="moon" class="h-4 w-4"></i></button>
+    <button id="acctBtn" class="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2.5 py-2 text-xs font-bold sub hover:border-[var(--accent)]">
+      <span id="acctAvatar" class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black text-white">A</span>
+      <span id="acctName" class="hidden sm:inline">Angler</span><i data-lucide="chevron-down" class="h-3.5 w-3.5"></i>
+    </button>
+  </div>
+</header>
+
+<div id="acctMenu" class="fixed right-3 top-16 z-[950] hidden w-64 card p-2 shadow-2xl">
+  <p class="px-2 py-1 text-[10px] font-black uppercase tracking-widest sub">Switch profile</p>
+  <div id="acctList" class="max-h-56 space-y-1 overflow-y-auto"></div>
+  <button id="addAcct" class="mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-bold hover:bg-[var(--panel2)]"><i data-lucide="user-plus" class="h-4 w-4" style="color:var(--accent)"></i> New profile</button>
+  <div class="my-1 border-t border-[var(--line)]"></div>
+  <button id="logoutBtn" class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-bold hover:bg-[var(--panel2)]" style="color:var(--hot)"><i data-lucide="log-out" class="h-4 w-4"></i> Log out</button>
+</div>
+
+<!-- PERSISTENT SIDE API RAIL -->
+<div id="apiRail" title="API keys & setup">
+  <span id="apiRailDot" class="dot"></span>
+  <span class="text-[11px] font-black uppercase tracking-widest">API Keys</span>
+</div>
+
+<main class="mx-auto max-w-3xl px-4">
+
+  <!-- HOME -->
+  <section id="s-home" class="screen active py-4">
+    <div class="card p-5">
+      <p class="text-xs uppercase tracking-widest sub" id="greeting">Good morning!</p>
+      <h2 class="mt-1 text-2xl font-black" id="homeHeadline">Tight lines today? 🎣</h2>
+      <p class="mt-1 text-sm sub">Scan a catch, check the water's safety, get directions, or ask the coach.</p>
+    </div>
+    <div class="mt-4 grid grid-cols-2 gap-3" id="quickActions"></div>
+    <div class="mt-5 flex items-center justify-between">
+      <h3 class="text-sm font-black uppercase tracking-widest sub">Water safety snapshot</h3>
+      <button class="text-xs font-bold" style="color:var(--accent)" data-goto="stats">Full report →</button>
+    </div>
+    <div id="homeSafety" class="mt-3"></div>
+    <div class="mt-5 flex items-center justify-between">
+      <h3 class="text-sm font-black uppercase tracking-widest sub">Recent catches</h3>
+      <button class="text-xs font-bold" style="color:var(--accent)" data-goto="log">Full log →</button>
+    </div>
+    <div class="mt-3 space-y-2" id="homeCatches"></div>
+  </section>
+
+  <!-- MAP -->
+  <section id="s-map" class="screen py-4">
+    <div class="card overflow-hidden">
+      <div class="flex flex-wrap items-center gap-2 border-b border-[var(--line)] px-4 py-3">
+        <i data-lucide="map" class="h-4 w-4" style="color:var(--accent)"></i>
+        <h3 class="text-sm font-black uppercase tracking-widest sub">Waters &amp; Spots</h3>
+        <div class="ml-auto flex items-center gap-2">
+          <select id="regionSel" class="rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2 py-1.5 text-xs font-bold outline-none">
+            <option value="bay">Bay Area (demo)</option><option value="all">All waters</option>
+          </select>
+          <select id="mapStyle" class="rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2 py-1.5 text-xs font-bold outline-none">
+            <option value="dark">Dark</option><option value="light">Light</option><option value="topo">Terrain</option><option value="sat">Satellite</option>
+          </select>
+          <button id="locateBtn" class="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2.5 py-1.5 text-xs font-bold sub hover:border-[var(--accent)]"><i data-lucide="locate-fixed" class="h-3.5 w-3.5"></i> Your Location</button>
+        </div>
+      </div>
+      <div id="map" class="h-[400px] w-full"></div>
+      <div id="routeBar" class="hidden border-t border-[var(--line)] px-4 py-2.5"></div>
+      <div class="flex flex-wrap items-center gap-3 border-t border-[var(--line)] px-4 py-2 text-[11px] sub">
+        <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-full" style="background:var(--good)"></span>Safe</span>
+        <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-full" style="background:var(--warn)"></span>Limit</span>
+        <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-full" style="background:var(--hot)"></span>Advisory</span>
+        <span class="ml-auto mono" id="waterCount"></span>
+      </div>
+    </div>
+    <div id="spotList" class="mt-3 space-y-2"></div>
+  </section>
+
+  <!-- SCAN -->
+  <section id="s-scan" class="screen py-4">
+    <div class="card p-5">
+      <div class="flex items-center gap-2">
+        <i data-lucide="scan-line" class="h-4 w-4" style="color:var(--accent)"></i>
+        <h3 class="text-sm font-black uppercase tracking-widest sub">Scan a Fish</h3>
+        <span id="scanEngine" class="ml-auto rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-widest"></span>
+      </div>
+      <label id="scanDrop" class="scan-drop mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[var(--line)] px-4 py-10 text-center">
+        <i data-lucide="image-plus" class="h-8 w-8 sub"></i><p class="text-sm font-bold">Tap to choose a photo</p>
+        <p class="text-xs sub">or drag &amp; drop · JPG / PNG</p><input id="scanInput" type="file" accept="image/*" class="hidden" />
+      </label>
+      <div id="scanPreviewWrap" class="mt-4 hidden">
+        <div class="relative overflow-hidden rounded-xl border border-[var(--line)]"><img id="scanPreview" class="max-h-72 w-full object-contain" style="background:var(--panel2)" alt="Selected fish" /></div>
+        <div class="mt-3 flex gap-2">
+          <button id="scanBtn" class="flex flex-1 items-center justify-center gap-2 rounded-lg py-3 text-sm font-black text-white" style="background:var(--accent)"><i data-lucide="sparkles" class="h-4 w-4"></i> Identify Fish</button>
+          <button id="scanClear" class="rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-4 text-sm font-bold sub">Clear</button>
+        </div>
+      </div>
+      <div id="scanStatus" class="mt-4 hidden items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-4 py-3 text-sm"><span class="spinner"></span><span id="scanStatusText">Working…</span></div>
+      <div id="scanResult" class="mt-4 hidden"></div>
+    </div>
+    <p class="mt-3 px-1 text-[11px] leading-relaxed sub">Scan uses <b>Gemini Vision</b> to identify your catch and auto-fill the log.</p>
+  </section>
+
+  <!-- STATS / SAFETY -->
+  <section id="s-stats" class="screen py-4">
+    <div class="card p-4">
+      <div class="flex flex-wrap items-center gap-2">
+        <i data-lucide="shield-check" class="h-4 w-4" style="color:var(--good)"></i>
+        <h3 class="text-sm font-black uppercase tracking-widest sub">Is this fish safe to eat?</h3>
+        <select id="statSpecies" class="ml-auto rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2.5 py-1.5 text-xs font-bold outline-none"></select>
+      </div>
+      <select id="statWater" class="mt-3 w-full rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-3 py-2.5 text-sm font-bold outline-none"></select>
+    </div>
+    <div id="verdict" class="mt-3"></div>
+    <div class="mt-3 grid grid-cols-3 gap-2" id="metricCards"></div>
+
+    <div class="card mt-3 p-4">
+      <div class="flex items-center gap-2">
+        <i data-lucide="flask-round" class="h-4 w-4" style="color:var(--hot)"></i>
+        <h3 class="text-sm font-black" id="mercuryTitle">Mercury trend</h3>
+        <span class="ml-auto text-[10px] sub">ppm · live sampling</span>
+      </div>
+      <div class="relative mt-3 h-52"><canvas id="mercuryChart"></canvas></div>
+      <p class="mt-2 text-xs sub" id="mercuryNote"></p>
+    </div>
+
+    <div class="card mt-3 p-4">
+      <div class="flex items-center gap-2">
+        <i data-lucide="droplets" class="h-4 w-4" style="color:var(--accent)"></i>
+        <h3 class="text-sm font-black" id="phTitle">Water pH — live</h3>
+        <span id="phBadge" class="ml-auto rounded-full px-2 py-0.5 text-[10px] font-black"></span>
+      </div>
+      <div class="relative mt-3 h-44"><canvas id="phChart"></canvas></div>
+      <p class="mt-2 text-xs sub">Healthy freshwater sits about 6.5–8.5 pH. Readings stream in live as the probe samples the water.</p>
+    </div>
+
+    <div class="card mt-3 p-4">
+      <div class="flex items-center gap-2"><i data-lucide="info" class="h-4 w-4" style="color:var(--accent)"></i><h3 class="text-sm font-black">Why mercury matters here</h3></div>
+      <p class="mt-2 text-sm sub leading-relaxed">Mercury from historic mining (like the 1800s gold rush) and coal plants settles into rivers and lakes, then climbs the food chain — so big, old, predatory fish carry the most. It can't be cooked out. This app flags it early so you keep the healthy catches and skip the risky ones. <b style="color:var(--text)">Guidance follows FDA/EPA fish-advisory tiers and is informational, not medical advice.</b></p>
+      <button id="askSafety" class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--panel2)] py-2.5 text-sm font-bold sub hover:border-[var(--accent)]"><i data-lucide="message-circle" class="h-4 w-4"></i> Ask the coach about this fish</button>
+    </div>
+  </section>
+
+  <!-- COACH -->
+  <section id="s-coach" class="screen">
+    <div class="flex h-[calc(100vh-76px-58px)] flex-col">
+      <div id="coachMode" class="flex items-center gap-2 border-b border-[var(--line)] px-1 py-2 text-[11px] sub"></div>
+      <div id="chatFeed" class="flex-1 space-y-3 overflow-y-auto px-1 py-4"></div>
+      <div id="chatChips" class="flex flex-wrap gap-1.5 px-1 pb-2"></div>
+      <div class="sticky bottom-0 flex items-center gap-2 border-t border-[var(--line)] bg-[var(--bg)] py-3">
+        <input id="chatInput" class="h-11 flex-1 rounded-full bg-[var(--panel2)] px-4 text-sm outline-none placeholder:sub" placeholder="Ask about a fish or its safety…" />
+        <button id="chatSend" class="flex h-11 w-11 items-center justify-center rounded-full text-white" style="background:var(--accent)"><i data-lucide="send-horizontal" class="h-5 w-5"></i></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOG -->
+  <section id="s-log" class="screen py-4">
+    <div class="flex items-center justify-between">
+      <h3 class="text-sm font-black uppercase tracking-widest sub">Catch Log</h3>
+      <div class="flex items-center gap-2">
+        <span id="logCount" class="mono text-xs sub">0 catches</span>
+        <button id="addManual" class="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2.5 py-1.5 text-xs font-bold sub hover:border-[var(--accent)]"><i data-lucide="plus" class="h-3.5 w-3.5"></i> Add</button>
+      </div>
+    </div>
+    <div class="mt-3 grid grid-cols-3 gap-2" id="logStats"></div>
+    <div id="logList" class="mt-3 space-y-2"></div>
+  </section>
+</main>
+
+<nav class="fixed bottom-0 left-0 right-0 z-[900] border-t border-[var(--line)] bg-[var(--panel)]">
+  <div class="mx-auto grid max-w-3xl grid-cols-6">
+    <button class="tabbar-btn active flex flex-col items-center gap-1 py-2.5 sub" data-tab="home"><i data-lucide="home" class="tb-icon h-5 w-5"></i><span class="text-[10px] font-bold">Home</span></button>
+    <button class="tabbar-btn flex flex-col items-center gap-1 py-2.5 sub" data-tab="map"><i data-lucide="map" class="tb-icon h-5 w-5"></i><span class="text-[10px] font-bold">Map</span></button>
+    <button class="tabbar-btn flex flex-col items-center gap-1 py-2.5 sub" data-tab="scan"><i data-lucide="scan-line" class="tb-icon h-5 w-5"></i><span class="text-[10px] font-bold">Scan</span></button>
+    <button class="tabbar-btn flex flex-col items-center gap-1 py-2.5 sub" data-tab="stats"><i data-lucide="shield-check" class="tb-icon h-5 w-5"></i><span class="text-[10px] font-bold">Safety</span></button>
+    <button class="tabbar-btn flex flex-col items-center gap-1 py-2.5 sub" data-tab="coach"><i data-lucide="message-circle" class="tb-icon h-5 w-5"></i><span class="text-[10px] font-bold">Coach</span></button>
+    <button class="tabbar-btn flex flex-col items-center gap-1 py-2.5 sub" data-tab="log"><i data-lucide="notebook-pen" class="tb-icon h-5 w-5"></i><span class="text-[10px] font-bold">Log</span></button>
+  </div>
+</nav>
+
+<div id="settingsBackdrop" class="fixed inset-0 z-[1000] hidden bg-black/60"></div>
+<aside id="settingsDrawer" class="drawer closed fixed right-0 top-0 z-[1001] h-full w-full max-w-md overflow-y-auto border-l border-[var(--line)] bg-[var(--panel)] p-5">
+  <div class="flex items-center gap-2"><i data-lucide="key-round" class="h-5 w-5" style="color:var(--accent)"></i><h2 class="text-lg font-black">API Keys &amp; Setup</h2>
+    <button id="closeSettings" class="ml-auto rounded-lg p-1.5 hover:bg-[var(--panel2)]"><i data-lucide="x" class="h-5 w-5"></i></button></div>
+  <p class="mt-1 text-xs sub">Optional. The coach works offline without any key. Add Gemini for smarter, open-ended answers.</p>
+
+  <div class="card mt-5 p-4">
+    <div class="flex items-center gap-2"><span class="flex h-6 w-6 items-center justify-center rounded-md text-xs font-black text-white" style="background:#4285f4">G</span>
+      <h3 class="text-sm font-black">Google Gemini</h3><span class="ml-auto text-[10px] font-bold uppercase" id="geminiStatus">not set</span></div>
+    <p class="mt-1 text-xs sub">Powers the AI Coach and photo fish detection. Free key from <a class="underline" style="color:var(--accent)" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>. Without it, the coach uses a built-in offline knowledge base.</p>
+    <input id="keyGemini" type="password" placeholder="AIza…" class="mono mt-3 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" />
+    <label class="mt-2 flex items-center gap-2 text-xs sub"><input id="showGemini" type="checkbox" /> show key</label>
+  </div>
+
+  <div class="card mt-4 p-4">
+    <div class="flex items-center gap-2"><i data-lucide="image-plus" class="h-4 w-4" style="color:var(--accent)"></i>
+      <h3 class="text-sm font-black">App Logo</h3><span id="logoStatus" class="ml-auto text-[10px] font-bold sub">default</span></div>
+    <p class="mt-1 text-xs sub">Upload a logo — it replaces the fish icon in the top bar and sign-in screen. Square images look best.</p>
+    <div class="mt-3 flex items-center gap-3">
+      <div id="logoPreview" class="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel2)]"><i data-lucide="fish" class="h-6 w-6" style="color:var(--accent)"></i></div>
+      <label class="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[var(--line)] py-3 text-sm font-bold sub hover:border-[var(--accent)]">
+        <i data-lucide="upload" class="h-4 w-4"></i> Upload logo
+        <input id="logoInput" type="file" accept="image/*" class="hidden" />
+      </label>
+    </div>
+    <button id="logoClear" class="mt-2 hidden w-full rounded-lg border border-[var(--line)] py-2 text-xs font-bold sub hover:text-[var(--hot)]">Remove logo (back to default)</button>
+  </div>
+
+  <button id="saveKeys" class="mt-5 w-full rounded-lg py-3 text-sm font-black text-white" style="background:var(--accent)">Save keys</button>
+  <p class="mt-3 text-[11px] sub">Keys are shared across profiles on this device. Chat and catches are per-profile.</p>
+</aside>
+
+<div id="manualModal" class="fixed inset-0 z-[1100] hidden items-center justify-center bg-black/60 p-4">
+  <div class="card w-full max-w-sm p-5">
+    <h3 class="text-base font-black">Log a catch</h3>
+    <label class="mt-3 block text-[11px] uppercase tracking-widest sub">Species</label>
+    <input id="mSpecies" class="mt-1 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" placeholder="e.g. Largemouth Bass" />
+    <div class="mt-3 grid grid-cols-2 gap-2">
+      <div><label class="block text-[11px] uppercase tracking-widest sub">Weight (lbs)</label><input id="mWeight" type="number" step="0.1" class="mt-1 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" placeholder="—" /></div>
+      <div><label class="block text-[11px] uppercase tracking-widest sub">Length (in)</label><input id="mLength" type="number" step="0.1" class="mt-1 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" placeholder="—" /></div>
+    </div>
+    <label class="mt-3 block text-[11px] uppercase tracking-widest sub">Notes</label>
+    <input id="mNotes" class="mt-1 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" placeholder="Spot, bait, conditions…" />
+    <div class="mt-4 flex gap-2"><button id="mSave" class="flex-1 rounded-lg py-2.5 text-sm font-black text-white" style="background:var(--accent)">Save</button>
+      <button id="mCancel" class="rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-4 text-sm font-bold sub">Cancel</button></div>
+  </div>
+</div>
+
+<div id="detailModal" class="fixed inset-0 z-[1150] hidden items-center justify-center bg-black/70 p-4">
+  <div class="card w-full max-w-3xl overflow-hidden">
+    <div class="flex items-center gap-2 border-b border-[var(--line)] px-4 py-2.5">
+      <i data-lucide="notebook-pen" class="h-4 w-4" style="color:var(--accent)"></i>
+      <h2 class="text-sm font-black uppercase tracking-widest sub">Catch details</h2>
+      <button id="detailMin" title="Minimize" class="ml-auto flex items-center gap-1 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2.5 py-1.5 text-xs font-bold sub hover:border-[var(--accent)]"><i data-lucide="minimize-2" class="h-3.5 w-3.5"></i> Minimize</button>
+      <button id="detailClose" class="rounded-lg p-1.5 hover:bg-[var(--panel2)]"><i data-lucide="x" class="h-5 w-5"></i></button>
+    </div>
+    <div id="detailBody" class="max-h-[80vh] overflow-y-auto p-4"></div>
+  </div>
+</div>
+
+<div id="toasts" class="fixed bottom-[86px] left-1/2 z-[1200] flex -translate-x-1/2 flex-col items-center gap-2"></div>
+
+<script>
+"use strict";
+/* ===================== storage ===================== */
+const store = (() => {
+  let mem = {}, ok = false;
+  try { localStorage.setItem("__p__","1"); localStorage.removeItem("__p__"); ok = true; } catch(e){}
+  return { get(k,f){ try{ if(ok){ const r=localStorage.getItem(k); return r?JSON.parse(r):f; } }catch(e){} return k in mem?mem[k]:f; },
+    set(k,v){ mem[k]=v; try{ if(ok) localStorage.setItem(k,JSON.stringify(v)); }catch(e){ if(!window.__quotaWarned){ window.__quotaWarned=true; try{ toast("Storage full — old photos may not persist. Delete a few catches.","warn"); }catch(_){} } } },
+    del(k){ delete mem[k]; try{ if(ok) localStorage.removeItem(k); }catch(e){} } };
+})();
+const $ = id => document.getElementById(id);
+let cfg = store.get("fishai_cfg", { gemini:"", proxy:"", theme:"light" });
+let proxyOnline = false;
+let accounts = store.get("fishai_accounts", []);
+let acct = null, data = null;
+
+const COLORS = ["#43b0f1","#5ad19a","#c084fc","#f1c343","#f16a6a","#38bdf8"];
+const GROUPS = [
+  { id:"general", label:"General adult", icon:"🎣" },
+  { id:"sensitive", label:"Pregnant / nursing", icon:"🤰" },
+  { id:"child", label:"Young child", icon:"🧒" },
+  { id:"senior", label:"Senior", icon:"👴" },
+];
+
+function toast(msg, kind="info"){
+  const c = { info:"var(--accent)", ok:"var(--good)", warn:"var(--warn)", err:"var(--hot)" }[kind];
+  const el = document.createElement("div");
+  el.className = "toast rounded-lg border bg-[var(--panel)] px-4 py-2.5 text-sm font-semibold shadow-xl";
+  el.style.borderColor = c; el.style.color = c; el.textContent = msg;
+  $("toasts").appendChild(el);
+  setTimeout(()=>{ el.style.transition="opacity .3s"; el.style.opacity="0"; setTimeout(()=>el.remove(),300); }, 3000);
+}
+function applyTheme(){
+  document.body.classList.toggle("light", cfg.theme==="light");
+  $("themeToggle").innerHTML = `<i data-lucide="${cfg.theme==="light"?"sun":"moon"}" class="h-4 w-4"></i>`;
+  if (window.lucide) lucide.createIcons();
+}
+$("themeToggle").addEventListener("click", ()=>{ cfg.theme=cfg.theme==="light"?"dark":"light"; store.set("fishai_cfg",cfg); applyTheme(); if(typeof applyLogo==="function") applyLogo(); if(map) setMapStyle($("mapStyle").value); });
+
+/* ===================== fish + water model ===================== */
+/* Each fish carries: mercury mean (ppm), a per-fish pH preference offset, and
+   its own volatility so live charts differ per species. */
+const FISH = {
+  "Rainbow Trout":  { emoji:"🐟", hg:0.07, sci:"Oncorhynchus mykiss", phPref:7.3, vol:0.04,
+                      bait:"PowerBait, nightcrawlers, small spinners", tip:"Stocked seasonally; fish cooler months and mornings.",
+                      eat:"Excellent eating, very low mercury." },
+  "Largemouth Bass":{ emoji:"🐠", hg:0.38, sci:"Micropterus salmoides", phPref:7.6, vol:0.09,
+                      bait:"Plastic worms, crankbaits, jigs near structure", tip:"Ambush predator — work docks, weed edges, drop-offs.",
+                      eat:"Popular but a predator, so mercury climbs in older fish." },
+  "Smallmouth Bass":{ emoji:"🐠", hg:0.31, sci:"Micropterus dolomieu", phPref:7.5, vol:0.08,
+                      bait:"Tubes, drop-shot, crawfish imitations", tip:"Loves rocky bottoms and current seams.",
+                      eat:"Good eating; moderate mercury in bigger ones." },
+  "Bluegill":       { emoji:"🐟", hg:0.05, sci:"Lepomis macrochirus", phPref:7.2, vol:0.03,
+                      bait:"Worms, crickets, tiny jigs under a float", tip:"Great beginner + kid fish; bed in shallows late spring.",
+                      eat:"Very safe, mild and tasty panfish." },
+  "Black Crappie":  { emoji:"🐟", hg:0.12, sci:"Pomoxis nigromaculatus", phPref:7.3, vol:0.05,
+                      bait:"Small minnows, marabou jigs", tip:"Schools around brush; best at dawn/dusk.",
+                      eat:"Low mercury, prized panfish." },
+  "Channel Catfish":{ emoji:"🐡", hg:0.11, sci:"Ictalurus punctatus", phPref:7.0, vol:0.05,
+                      bait:"Cut bait, chicken liver, stink bait on bottom", tip:"Night bite is strong; fish deeper holes.",
+                      eat:"Low mercury; skin and trim fat before cooking." },
+  "Common Carp":    { emoji:"🐟", hg:0.14, sci:"Cyprinus carpio", phPref:7.4, vol:0.06,
+                      bait:"Corn, dough balls, boilies", tip:"Bottom feeder — chum a spot and be patient.",
+                      eat:"Edible; bottom feeder, so water quality matters." },
+  "Striped Bass":   { emoji:"🐠", hg:0.24, sci:"Morone saxatilis", phPref:7.7, vol:0.08,
+                      bait:"Live shad, swimbaits, topwater at dawn", tip:"Follows bait schools; watch for surface boils.",
+                      eat:"Watch advisories — larger stripers carry more mercury." },
+  "Northern Pike":  { emoji:"🦈", hg:0.52, sci:"Esox lucius", phPref:7.4, vol:0.11,
+                      bait:"Large spoons, spinnerbaits, wire leader", tip:"Aggressive apex predator; use a steel leader.",
+                      eat:"Big predator — highest mercury here; limit intake." },
+  "Walleye":        { emoji:"🐟", hg:0.44, sci:"Sander vitreus", phPref:7.5, vol:0.10,
+                      bait:"Jig-and-minnow, crawler harness", tip:"Low-light feeder; slow presentations near bottom.",
+                      eat:"Delicious but predatory — moderate mercury, vary intake." },
+};
+const FDA_LIMIT = 1.0, TIER_GOOD = 0.15, TIER_AVOID = 0.46;
+const GROUP_FACTOR = { general:1, sensitive:0.5, child:0.5, senior:0.8 };
+
+/* Waters — real Bay Area spots near San Ramon & Cupertino, plus a few others.
+   region:"bay" flags the demo set. advisory:true when a real OEHHA-style notice exists. */
+const WATERS = [
+  // --- Cupertino / South Bay ---
+  { id:1,  name:"Stevens Creek Reservoir", lat:37.2986, lng:-122.0772, kind:"Reservoir", region:"bay", score:74, hgFactor:1.6, phBase:7.2, note:"OEHHA advisory: limit intake (mercury/PCBs)." },
+  { id:2,  name:"Vasona Lake",             lat:37.2424, lng:-121.9680, kind:"Lake",      region:"bay", score:71, hgFactor:1.0, phBase:7.4, note:"Family park; catch-and-release trout." },
+  { id:3,  name:"Lexington Reservoir",     lat:37.1836, lng:-121.9905, kind:"Reservoir", region:"bay", score:80, hgFactor:1.4, phBase:7.1, note:"Bass & crappie; non-powered boats." },
+  { id:4,  name:"Sandy Wool Lake",         lat:37.4712, lng:-121.8613, kind:"Lake",      region:"bay", score:77, hgFactor:0.9, phBase:7.5, note:"Ed Levin Park; stocked catfish/trout." },
+  { id:5,  name:"Cottonwood Lake",         lat:37.2775, lng:-121.8110, kind:"Lake",      region:"bay", score:76, hgFactor:0.8, phBase:7.4, note:"Hellyer Park; stocked trout Nov–Apr." },
+  { id:6,  name:"Almaden Lake",            lat:37.2377, lng:-121.8760, kind:"Lake",      region:"bay", score:63, hgFactor:1.7, phBase:7.0, note:"Historic mercury mining nearby — advisory." },
+  // --- San Ramon / East Bay ---
+  { id:7,  name:"Lake Cascade (San Ramon)",lat:37.7405, lng:-121.9611, kind:"Pond",      region:"bay", score:69, hgFactor:0.9, phBase:7.5, note:"Quiet neighborhood lake; bluegill/bass." },
+  { id:8,  name:"Del Valle Reservoir",     lat:37.5860, lng:-121.7010, kind:"Reservoir", region:"bay", score:88, hgFactor:1.1, phBase:7.6, note:"Livermore; stocked trout, striper, catfish." },
+  { id:9,  name:"Shadow Cliffs Lake",      lat:37.6663, lng:-121.8460, kind:"Lake",      region:"bay", score:82, hgFactor:1.0, phBase:7.5, note:"Pleasanton; former quarry, stocked." },
+  { id:10, name:"Quarry Lakes",            lat:37.5688, lng:-121.9860, kind:"Lake",      region:"bay", score:79, hgFactor:1.0, phBase:7.4, note:"Fremont; trout & catfish stocked." },
+  { id:11, name:"Los Vaqueros Reservoir",  lat:37.8330, lng:-121.7300, kind:"Reservoir", region:"bay", score:90, hgFactor:1.2, phBase:7.6, note:"Brentwood; bass, striper, catfish." },
+  { id:12, name:"Contra Loma Reservoir",   lat:37.9640, lng:-121.7830, kind:"Reservoir", region:"bay", score:75, hgFactor:1.3, phBase:7.3, note:"Antioch; stocked trout & catfish." },
+  // --- other demo waters ---
+  { id:13, name:"Kenai Lake (AK)",         lat:60.4,    lng:-149.8,    kind:"Lake",      region:"all", score:96, hgFactor:0.6, phBase:7.8, note:"Pristine glacial lake." },
+  { id:14, name:"Gold Run Reservoir",      lat:39.1911, lng:-120.9,    kind:"Reservoir", region:"all", score:52, hgFactor:2.1, phBase:6.6, note:"Gold-rush legacy mercury — high." },
+  { id:15, name:"Clearwater Pond (VT)",    lat:44.2619, lng:-72.5806,  kind:"Pond",      region:"all", score:84, hgFactor:0.7, phBase:7.4, note:"Clean New England pond." },
+];
+let currentRegion = "bay";
+function visibleWaters(){ return currentRegion==="all" ? WATERS : WATERS.filter(w=>w.region==="bay"); }
+
+function seededRand(seed){ let x=Math.sin(seed)*10000; return x-Math.floor(x); }
+function effectiveHg(fishName, water){ return +(FISH[fishName].hg * water.hgFactor).toFixed(3); }
+/* per-fish pH baseline in a given water = water base nudged toward the fish's preference */
+function fishPhBase(fishName, water){ return +( (water.phBase*0.7 + FISH[fishName].phPref*0.3) ).toFixed(2); }
+
+function verdictFor(fishName, water, group){
+  const hg = effectiveHg(fishName, water);
+  const factor = GROUP_FACTOR[group]||1, goodT=TIER_GOOD*factor, avoidT=TIER_AVOID*factor;
+  const phBad = water.phBase<6.0 || water.phBase>9.0;
+  let level,title,emoji,servings;
+  if (hg<=goodT){ level="safe"; title="Safe to eat"; emoji="✅"; servings="2–3 servings / week"; }
+  else if (hg<=avoidT){ level="limit"; title="Eat in moderation"; emoji="⚠️"; servings="about 1 serving / week"; }
+  else { level="avoid"; title="Best avoided"; emoji="⛔"; servings="do not eat regularly"; }
+  if (phBad && level==="safe"){ level="limit"; title="Caution — water quality"; emoji="⚠️"; }
+  const pct = Math.min(100, Math.round(hg/FDA_LIMIT*100));
+  const gl = (GROUPS.find(g=>g.id===group)||GROUPS[0]).label.toLowerCase();
+  const msg = { safe:`Mercury here is low (${hg} ppm — ${pct}% of the FDA limit). Good pick for ${gl}. Enjoy ${servings}.`,
+    limit:`Mercury is moderate (${hg} ppm — ${pct}% of the FDA limit). For ${gl}, keep it to ${servings} and vary your catches.`,
+    avoid:`Mercury is high (${hg} ppm — ${pct}% of the FDA limit). For ${gl} this one is best skipped; choose a lower-mercury species.` }[level];
+  return { level,title,emoji,servings,msg,hg,pct };
+}
+
+/* ===================== nav ===================== */
+const SCREENS = ["home","map","scan","stats","coach","log"];
+function go(tab){
+  SCREENS.forEach(s => $("s-"+s).classList.toggle("active", s===tab));
+  document.querySelectorAll(".tabbar-btn").forEach(b => b.classList.toggle("active", b.dataset.tab===tab));
+  $("topSub").textContent = { home:"Fishing Companion", map:"Waters & Spots", scan:"Fish Recognition", stats:"Safety & Analytics", coach:"AI Fish Coach", log:"Catch Log" }[tab];
+  if (tab==="map") setTimeout(()=>map.invalidateSize(), 60);
+  if (tab==="coach") setTimeout(()=> $("chatFeed").scrollTo(0,1e9), 40);
+  if (tab==="stats") startStats(); else stopStatsStream();
+}
+document.querySelectorAll(".tabbar-btn").forEach(b => b.addEventListener("click", ()=>go(b.dataset.tab)));
+document.querySelectorAll("[data-goto]").forEach(b => b.addEventListener("click", ()=>go(b.dataset.goto)));
+(function(){ const h=new Date().getHours(); $("greeting").textContent = h<12?"Good morning!":h<17?"Good afternoon!":"Good evening!"; })();
+
+const QUICK = [
+  { t:"Scan Fish", d:"Identify your catch", icon:"scan-line", go:"scan" },
+  { t:"Check Safety", d:"Mercury & pH", icon:"shield-check", go:"stats" },
+  { t:"Ask Coach", d:"Is it safe to eat?", icon:"message-circle", go:"coach" },
+  { t:"Directions", d:"Route to a spot", icon:"navigation", go:"map" },
+];
+$("quickActions").innerHTML = QUICK.map(q => `
+  <button data-goto="${q.go}" class="card flex items-center gap-3 p-4 text-left hover:border-[var(--accent)]">
+    <span class="flex h-10 w-10 items-center justify-center rounded-lg" style="background:color-mix(in srgb,var(--accent) 12%,transparent)"><i data-lucide="${q.icon}" class="h-5 w-5" style="color:var(--accent)"></i></span>
+    <span><span class="block text-sm font-black">${q.t}</span><span class="block text-xs sub">${q.d}</span></span></button>`).join("");
+$("quickActions").querySelectorAll("[data-goto]").forEach(b => b.addEventListener("click", ()=>go(b.dataset.goto)));
+
+/* ===================== map + routing ===================== */
+const scoreColor = s => s>=85?"var(--good)":s>=75?"var(--accent)":s>=60?"var(--warn)":"var(--hot)";
+const scoreLabel = s => s>=85?"Safe":s>=75?"Fine":s>=60?"Mild":"Caution";
+function safetyColorForWater(w){ const v=verdictFor("Largemouth Bass", w, "general"); return v.level==="safe"?"#5ad19a":v.level==="limit"?"#f1c343":"#f16a6a"; }
+
+let map, tileLayer, meMarker=null, homePos=null, selectedSpot=null;
+const TILES = {
+  dark:  { url:"https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", attr:"&copy; OSM &copy; CARTO", sub:"abcd" },
+  light: { url:"https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", attr:"&copy; OSM &copy; CARTO", sub:"abcd" },
+  topo:  { url:"https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", attr:"&copy; OpenTopoMap", sub:"abc" },
+  sat:   { url:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attr:"&copy; Esri", sub:"" },
+};
+function setMapStyle(key){ const t=TILES[key]||TILES.dark; if(tileLayer) map.removeLayer(tileLayer);
+  tileLayer=L.tileLayer(t.url,{ attribution:t.attr, subdomains:t.sub, maxZoom:18 }).addTo(map); }
+function renderMarkers(){
+  WATERS.forEach(w => { if(w._m){ map.removeLayer(w._m); w._m=null; } });
+  visibleWaters().forEach(w => {
+    const c = safetyColorForWater(w); const v = verdictFor("Largemouth Bass", w, "general");
+    w._m = L.marker([w.lat,w.lng], { icon:L.divIcon({ className:"", html:`<div class="spot-pin" style="background:${c}"><span>${w.score}</span></div>`, iconSize:[32,32], iconAnchor:[16,32] }) })
+      .addTo(map).on("click",()=>window._select(w.id)).bindPopup(`<b>${w.name}</b> <span style="opacity:.7">(${w.kind})</span><br/>Score ${w.score} · ${scoreLabel(w.score)}<br/>Safety: <b style="color:${c}">${v.title}</b><br/><button onclick="window._safety(${w.id})" style="margin-top:7px;padding:5px 10px;border-radius:8px;background:${c};color:#08131c;font-weight:800;border:0;cursor:pointer">🛡️ Check Safety</button>`);
+  });
+  $("waterCount").textContent = visibleWaters().length + " waters";
+}
+function initMap(){
+  map = L.map("map", { zoomControl:true }).setView([37.6,-121.95], 9);
+  setMapStyle(cfg.theme==="light"?"light":"dark");
+  $("mapStyle").value = cfg.theme==="light"?"light":"dark";
+  renderMarkers();
+  // clicking empty map (not a pin) clears the selection
+  map.on("click", ()=> window._deselect());
+}
+$("mapStyle").addEventListener("change", e=>setMapStyle(e.target.value));
+$("regionSel").addEventListener("change", e=>{ currentRegion=e.target.value; renderMarkers(); renderSpotList();
+  const b=L.latLngBounds(visibleWaters().map(w=>[w.lat,w.lng])); if(b.isValid()) map.fitBounds(b.pad(0.2)); });
+
+function setHome(lat,lng,label){
+  homePos = { lat, lng, label:label||"Your start" };
+  if (meMarker) map.removeLayer(meMarker);
+  meMarker = L.marker([lat,lng], { icon:L.divIcon({ className:"", html:'<div class="home-pin"></div>', iconSize:[18,18], iconAnchor:[9,9] }) }).addTo(map).bindPopup(homePos.label).openPopup();
+}
+$("locateBtn").addEventListener("click", () => {
+  if (!navigator.geolocation){ toast("No geolocation — dropping a demo start in San Ramon","warn"); setHome(37.7799,-121.9780,"Demo start · San Ramon"); map.flyTo([37.7799,-121.978],11); return; }
+  toast("Locating…","info");
+  navigator.geolocation.getCurrentPosition(pos=>{ setHome(pos.coords.latitude,pos.coords.longitude,"Your location"); map.flyTo([pos.coords.latitude,pos.coords.longitude],11,{duration:.8}); toast("Start point set 📍","ok"); },
+    err=>{ toast("Location blocked — using demo start (San Ramon)","warn"); setHome(37.7799,-121.9780,"Demo start · San Ramon"); map.flyTo([37.7799,-121.978],11); },
+    { enableHighAccuracy:true, timeout:9000 });
+});
+
+const R=6371; // km
+function haversine(a,b){ const dLat=(b.lat-a.lat)*Math.PI/180, dLng=(b.lng-a.lng)*Math.PI/180,
+  la1=a.lat*Math.PI/180, la2=b.lat*Math.PI/180;
+  const h=Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)); }
+window._safety = function(waterId){
+  const w = WATERS.find(x=>x.id==waterId); if(!w) return;
+  if($("statWater")){ $("statWater").value = String(w.id); }
+  go("stats");
+  toast(`Safety for ${w.name}`,"info");
+};
+window._select = function(waterId){
+  const w = WATERS.find(x=>x.id==waterId); if(!w) return;
+  selectedSpot = w;
+  const v = verdictFor("Largemouth Bass", w, "general");
+  const vc = v.level==='safe'?'var(--good)':v.level==='limit'?'var(--warn)':'var(--hot)';
+  const bar = $("routeBar"); bar.classList.remove("hidden");
+  const dir = `https://www.google.com/maps/dir/?api=1&destination=${w.lat},${w.lng}`;
+  bar.innerHTML = `<div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+    <span class="flex items-center gap-1.5 text-sm font-black"><span class="inline-block h-3 w-3 rounded-full" style="background:${scoreColor(w.score)}"></span> ${w.name} <span class="text-[10px] sub">${w.kind}</span></span>
+    <span class="text-xs" style="color:${vc}">${v.title}</span>
+    ${w.note?`<span class="w-full text-[11px] sub">📍 ${w.note}</span>`:""}
+    <span class="ml-auto flex items-center gap-2 text-xs">
+      <button onclick="window._safety(${w.id})" class="rounded-md px-2.5 py-1 font-black" style="background:${vc};color:#08131c">🛡️ Safety</button>
+      <a href="${dir}" target="_blank" rel="noopener" class="rounded-md px-2.5 py-1 font-black text-white" style="background:var(--accent)">🧭 Directions</a>
+    </span></div>`;
+};
+window._deselect = function(){ selectedSpot=null; const bar=$("routeBar"); bar.classList.add("hidden"); bar.innerHTML=""; };
+
+function renderSpotList(){
+  const sorted = visibleWaters().slice().sort((a,b)=>b.score-a.score);
+  $("spotList").innerHTML = sorted.map(w => {
+    const v = verdictFor("Largemouth Bass", w, "general");
+    const vc = v.level==='safe'?'var(--good)':v.level==='limit'?'var(--warn)':'var(--hot)';
+    return `<div class="card p-3">
+      <div class="flex items-center gap-3">
+        <span class="flex h-11 w-11 flex-none items-center justify-center rounded-lg font-black" style="background:${scoreColor(w.score)};color:#08131c">${w.score}</span>
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm font-black">${w.name} <span class="text-[10px] sub">${w.kind}</span></p>
+          <p class="text-xs sub">${scoreLabel(w.score)} fishing · <span style="color:${vc}">${v.title}</span></p>
+        </div>
+        <button data-safe="${w.id}" class="rounded-lg px-2.5 py-1.5 text-xs font-black" style="background:${vc};color:#08131c">🛡️ Safety</button>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=${w.lat},${w.lng}" target="_blank" rel="noopener" class="rounded-lg px-2.5 py-1.5 text-xs font-black text-white" style="background:var(--accent)">🧭 Directions</a>
+      </div>
+      ${w.note?`<p class="mt-2 text-[11px] sub">📍 ${w.note}</p>`:""}
+    </div>`;
+  }).join("");
+  $("spotList").querySelectorAll("[data-safe]").forEach(b => b.addEventListener("click", ()=> window._safety(b.dataset.safe)));
+  if (window.lucide) lucide.createIcons();
+}
+
+/* ===================== stats (per-fish, animated/streaming) ===================== */
+let mercuryChart=null, phChart=null;
+const HIST_YEARS = 6; // show past 6 years + now
+function chartText(){ return getComputedStyle(document.body).getPropertyValue("--sub").trim()||"#94a3b8"; }
+function chartGrid(){ return getComputedStyle(document.body).getPropertyValue("--line").trim()||"#2a3644"; }
+function accentCol(){ return getComputedStyle(document.body).getPropertyValue("--accent").trim()||"#43b0f1"; }
+
+function buildStatsControls(){
+  $("statSpecies").innerHTML = Object.keys(FISH).map(f=>`<option value="${f}">${FISH[f].emoji} ${f}</option>`).join("");
+  refreshStatWaterOptions();
+  $("statSpecies").value = "Largemouth Bass";
+  $("statWater").value = String(visibleWaters()[0].id);
+  $("statSpecies").addEventListener("change", ()=>{ renderStats(); });
+  $("statWater").addEventListener("change", ()=>{ renderStats(); });
+}
+function refreshStatWaterOptions(){
+  $("statWater").innerHTML = WATERS.map(w=>`<option value="${w.id}">${w.name} (${w.kind}) · score ${w.score}</option>`).join("");
+}
+function currentFishWater(){ return { fishName:$("statSpecies").value, water:WATERS.find(w=>w.id==$("statWater").value) }; }
+
+/* Build a stable multi-year history for this fish+water. Deterministic (seeded),
+   trending gently toward the current value so "now" matches the metric cards. */
+function yearLabels(){ const y=new Date().getFullYear(); const a=[]; for(let i=HIST_YEARS;i>=1;i--) a.push(String(y-i)); a.push("Now"); return a; }
+function mercuryHistory(fishName, water){
+  const now = effectiveHg(fishName, water); const out=[];
+  for(let i=HIST_YEARS;i>=1;i--){
+    // older years slightly higher on average (contamination easing), plus seeded wobble
+    const drift = 1 + i*0.03;
+    const wob = (seededRand(water.id*41 + fishName.length*7 + i) - 0.5) * now * 0.25;
+    out.push(Math.max(0, +(now*drift + wob).toFixed(3)));
+  }
+  out.push(+now.toFixed(3));
+  return out;
+}
+function phHistory(fishName, water){
+  const base = fishPhBase(fishName, water); const out=[];
+  for(let i=HIST_YEARS;i>=1;i--){
+    const wob = (seededRand(water.id*23 + fishName.length*5 + i) - 0.5) * 0.5;
+    out.push(+ (base + wob).toFixed(2));
+  }
+  out.push(+base.toFixed(2));
+  return out;
+}
+
+function drawMercury(){
+  const ctx=$("mercuryChart").getContext("2d");
+  const { fishName, water }=currentFishWater();
+  const vals = mercuryHistory(fishName, water);
+  const h = ctx.canvas.height || 200;
+  const grad=(c1,c2)=>{ const g=ctx.createLinearGradient(0,0,0,h); g.addColorStop(0,c1); g.addColorStop(1,c2); return g; };
+  const colors = vals.map(v=> v<=TIER_GOOD?grad("#7dffc0","#1f9e6a"):v<=TIER_AVOID?grad("#ffe27d","#d98e00"):grad("#ff9a9a","#d63333"));
+  if (mercuryChart) mercuryChart.destroy();
+  mercuryChart = new Chart(ctx, {
+    type:"bar",
+    data:{ labels:yearLabels(), datasets:[{ label:"Mercury (ppm)", data:vals, backgroundColor:colors, borderRadius:6, borderSkipped:false }] },
+    options:{ responsive:true, maintainAspectRatio:false, animation:{ duration:700 },
+      plugins:{ legend:{ display:false }, title:{ display:true, text:`Mercury in ${fishName} — ${water.name}`, color:chartText(), font:{ size:11, weight:"bold" } },
+        tooltip:{ callbacks:{ label:c=>` ${c.raw} ppm` } } },
+      scales:{ x:{ title:{ display:true, text:"Year", color:chartText(), font:{ size:10 } }, ticks:{ color:chartText(), font:{ size:9 } }, grid:{ display:false } },
+        y:{ beginAtZero:true, suggestedMax:Math.max(0.3, FISH[fishName].hg*1.8), title:{ display:true, text:"Mercury (ppm)", color:chartText(), font:{ size:10 } }, ticks:{ color:chartText(), font:{ size:9 } }, grid:{ color:chartGrid() } } } },
+    plugins:[{ id:"fdaLine", afterDraw(c){
+      const lim = FISH[fishName].hg*1.8 < FDA_LIMIT ? null : FDA_LIMIT;
+      const yv = lim || TIER_AVOID; const label = lim ? "FDA limit 1.0" : "avoid > 0.46";
+      const y=c.scales.y.getPixelForValue(yv), {left,right}=c.chartArea, g=c.ctx;
+      g.save(); g.strokeStyle="#f16a6a"; g.setLineDash([6,4]); g.lineWidth=1.4;
+      g.beginPath(); g.moveTo(left,y); g.lineTo(right,y); g.stroke();
+      g.setLineDash([]); g.fillStyle="#f16a6a"; g.font="700 9px sans-serif"; g.fillText(label,left+4,y-3); g.restore();
+    }}]
+  });
+}
+function drawPh(){
+  const ctx=$("phChart").getContext("2d");
+  const { fishName, water }=currentFishWater();
+  const vals = phHistory(fishName, water);
+  const w = ctx.canvas.width || 300;
+  const stroke = ctx.createLinearGradient(0,0,w,0);
+  stroke.addColorStop(0,"#38bdf8"); stroke.addColorStop(1,"#1f8fd0");
+  const fill = ctx.createLinearGradient(0,0,0,ctx.canvas.height||180);
+  fill.addColorStop(0,"rgba(31,143,208,.30)"); fill.addColorStop(1,"rgba(31,143,208,0)");
+  if (phChart) phChart.destroy();
+  phChart = new Chart(ctx, {
+    type:"line",
+    data:{ labels:yearLabels(), datasets:[{ label:"Water pH", data:vals, borderColor:stroke, backgroundColor:fill,
+      tension:.3, fill:true, pointRadius:3, pointBackgroundColor:accentCol(), pointBorderColor:"#fff", pointBorderWidth:1, borderWidth:3 }] },
+    options:{ responsive:true, maintainAspectRatio:false, animation:{ duration:700 },
+      plugins:{ legend:{ display:false }, title:{ display:true, text:`Water pH — ${fishName} habitat in ${water.name}`, color:chartText(), font:{ size:11, weight:"bold" } },
+        tooltip:{ callbacks:{ label:c=>` pH ${c.raw}` } } },
+      scales:{ x:{ title:{ display:true, text:"Year", color:chartText(), font:{ size:10 } }, ticks:{ color:chartText(), font:{ size:9 } }, grid:{ display:false } },
+        y:{ min:5.5, max:9.5, title:{ display:true, text:"pH", color:chartText(), font:{ size:10 } }, ticks:{ color:chartText(), font:{ size:9 } }, grid:{ color:chartGrid() } } } },
+    plugins:[{ id:"phBand", beforeDraw(c){ const g=c.ctx, yT=c.scales.y.getPixelForValue(8.5), yB=c.scales.y.getPixelForValue(6.5), {left,right}=c.chartArea;
+      g.save(); g.fillStyle="rgba(90,209,154,.12)"; g.fillRect(left,yT,right-left,yB-yT);
+      g.fillStyle="rgba(90,209,154,.7)"; g.font="700 8px sans-serif"; g.fillText("healthy 6.5–8.5", left+4, yT+10); g.restore(); }}]
+  });
+}
+function renderVerdict(){
+  const { fishName, water } = currentFishWater();
+  const group = acct?.group || "general";
+  const v = verdictFor(fishName, water, group);
+  const vc = v.level==="safe"?"v-safe":v.level==="limit"?"v-limit":"v-avoid";
+  const vcolor = v.level==="safe"?"var(--good)":v.level==="limit"?"var(--warn)":"var(--hot)";
+  $("verdict").innerHTML = `<div class="verdict ${vc}">
+    <div class="flex items-center gap-3"><span class="text-3xl">${v.emoji}</span>
+      <div><p class="text-lg font-black" style="color:${vcolor}">${v.title}</p><p class="text-xs sub">${FISH[fishName].emoji} ${fishName} · ${water.name}</p></div>
+      <span class="ml-auto rounded-full px-3 py-1 text-xs font-black" style="background:${vcolor};color:#08131c">${v.servings}</span></div>
+    <p class="mt-3 text-sm">${v.msg}</p>${water.note?`<p class="mt-2 text-xs sub">📍 ${water.name}: ${water.note}</p>`:""}</div>`;
+  const ph = fishPhBase(fishName,water), phOk = ph>=6.5&&ph<=8.5;
+  $("metricCards").innerHTML = [
+    { l:"Mercury", v:v.hg+" ppm", c:vcolor, s:`${v.pct}% of FDA limit` },
+    { l:"Water pH", v:ph.toFixed(1), c:phOk?"var(--good)":"var(--warn)", s:phOk?"healthy":"watch" },
+    { l:"Fish score", v:water.score, c:scoreColor(water.score), s:scoreLabel(water.score) },
+  ].map(m=>`<div class="card p-3 text-center"><p class="text-xl font-black" style="color:${m.c}">${m.v}</p><p class="text-[10px] uppercase tracking-widest sub">${m.l}</p><p class="mt-0.5 text-[10px] sub">${m.s}</p></div>`).join("");
+  $("mercuryTitle").textContent = `Mercury — past ${HIST_YEARS} years`;
+  $("phTitle").textContent = `Water pH — past ${HIST_YEARS} years`;
+  $("mercuryNote").textContent = `Yearly mercury for ${fishName} in ${water.name} (local factor ${water.hgFactor}×). Green safe · amber limit · red avoid.`;
+  $("phBadge").textContent = phOk?"healthy":"watch";
+  $("phBadge").style.background = phOk?"color-mix(in srgb,var(--good) 18%,transparent)":"color-mix(in srgb,var(--warn) 18%,transparent)";
+  $("phBadge").style.color = phOk?"var(--good)":"var(--warn)";
+}
+function renderStats(){ drawMercury(); drawPh(); renderVerdict(); }
+function startStats(){
+  refreshStatWaterOptions();
+  if (!WATERS.some(w=>w.id==$("statWater").value)) $("statWater").value=String(visibleWaters()[0].id);
+  renderStats();
+}
+function stopStatsStream(){ /* no-op: charts are static yearly history now */ }
+$("askSafety").addEventListener("click", ()=>{
+  const { fishName, water } = currentFishWater();
+  go("coach"); $("chatInput").value = `Is it safe to eat ${fishName} from ${water.name}?`; sendChat();
+});
+
+/* ===================== HARDCODED OFFLINE COACH ===================== */
+function offlineReply(qRaw){
+  const q = qRaw.toLowerCase();
+  // 1) does the message name a known fish?
+  const fishHit = Object.keys(FISH).find(f => q.includes(f.toLowerCase()) || q.includes(f.split(" ")[0].toLowerCase()));
+  // 2) does it name a known water?
+  const waterHit = WATERS.find(w => q.includes(w.name.toLowerCase().split(" (")[0].toLowerCase()));
+  const isSafety = /(safe|eat|mercury|toxic|poison|pregnan|child|kid|advisor|pcb)/.test(q);
+  const isBait = /(bait|lure|catch|how do i|technique|tackle|rig|best way)/.test(q);
+  const isWhen = /(when|season|time of day|morning|weather|best time)/.test(q);
+  const isSpot = /(where|spot|lake|pond|near|location|place)/.test(q);
+
+  if (fishHit){
+    const f = FISH[fishHit];
+    if (isSafety){
+      const w = waterHit || WATERS.find(w=>w.id==($("statWater").value)) || WATERS[0];
+      const v = verdictFor(fishHit, w, acct?.group||"general");
+      return `**${fishHit}** ${f.emoji} in **${w.name}**\n\n${v.emoji} **${v.title}** — ${v.servings}\n\n${v.msg}\n\n_${f.eat}_ ${w.note?("\n\n📍 "+w.name+": "+w.note):""}\n\nThis is informational, not medical advice — check your state advisory for the exact water.`;
+    }
+    if (isBait || isWhen){
+      return `**${fishHit}** ${f.emoji} (_${f.sci}_)\n\n🎣 **Bait/technique:** ${f.bait}\n\n💡 **Tip:** ${f.tip}\n\n🍽️ **Eating:** ${f.eat}`;
+    }
+    // general fish profile
+    const v = verdictFor(fishHit, WATERS.find(w=>w.id==($("statWater").value))||WATERS[0], acct?.group||"general");
+    return `**${fishHit}** ${f.emoji} (_${f.sci}_)\n\n🎣 **Bait:** ${f.bait}\n💡 **Tip:** ${f.tip}\n🧪 **Mercury:** ~${f.hg} ppm baseline (${v.title.toLowerCase()})\n🍽️ ${f.eat}`;
+  }
+
+  if (waterHit){
+    const bestFish = Object.keys(FISH).filter(f=>verdictFor(f,waterHit,acct?.group||"general").level==="safe").slice(0,4);
+    return `**${waterHit.name}** (${waterHit.kind})\n\n🐟 Fishing score: **${waterHit.score}/100** (${scoreLabel(waterHit.score)})\n${waterHit.note?("📍 "+waterHit.note+"\n"):""}\n✅ **Safest to keep here:** ${bestFish.join(", ")||"choose smaller, younger fish"}\n\nTap **Route** on the map to get directions and drive time.`;
+  }
+
+  // topic answers
+  if (/mercury/.test(q)){
+    return `**Mercury in fish — the short version** 🧪\n\nMercury from coal plants and old mining (like the Gold Rush) settles into water and builds up the food chain. So **big, old, predatory fish** (pike, walleye, striper, large bass) carry the most; **small fish** (bluegill, trout, crappie) carry the least. You can't cook it out.\n\n**Rule of thumb:** the FDA action level is 1.0 ppm. Pick species under ~0.15 ppm freely, limit 0.15–0.46 ppm, and mostly avoid above that — stricter if you're pregnant or feeding kids.`;
+  }
+  if (/pregnan|child|kid|nursing/.test(q)){
+    return `**Eating fish while pregnant or feeding kids** 🤰🧒\n\nFish is great for development, but mercury hits developing brains hardest — so choose **low-mercury** species: salmon, trout, bluegill, crappie, catfish. **Avoid** high-mercury predators (pike, swordfish, king mackerel, big bass/walleye).\n\nAim for a couple of servings a week of the safe list, and vary what you eat. Set your profile group to "Pregnant / nursing" and the Safety tab tightens every threshold automatically.`;
+  }
+  if (/ph|acid|water quality/.test(q)){
+    return `**Water pH & fish** 💧\n\nHealthy freshwater sits around **6.5–8.5**. Too acidic or too alkaline stresses fish and can signal pollution or runoff. The Safety tab streams a live pH read per species habitat and shades the healthy band so you can eyeball it fast.`;
+  }
+  if (isBait){
+    return `Tell me which fish and I'll give exact bait & technique 🎣. Quick hits:\n\n• **Trout:** PowerBait / nightcrawlers, cool mornings\n• **Bass:** plastic worms & crankbaits near structure\n• **Bluegill/Crappie:** worms or tiny jigs under a float\n• **Catfish:** cut bait or liver on the bottom, evenings`;
+  }
+  if (isSpot){
+    const top = visibleWaters().slice().sort((a,b)=>b.score-a.score).slice(0,3).map(w=>`• **${w.name}** (${scoreLabel(w.score)})`).join("\n");
+    return `**Top nearby waters right now:**\n\n${top}\n\nOpen the **Map** tab, tap a pin → **Directions** for the route, distance, and drive time.`;
+  }
+  if (/hello|hi |hey|help|what can you/.test(q)){
+    return `👋 I'm your **Fish Coach** (running offline). I can help with:\n\n🎣 How to catch a species (ask "how do I catch trout?")\n🧪 Whether a fish is safe to eat ("is pike safe to eat?")\n💧 Mercury, pH, and advisories\n📍 Spots & directions\n\nAdd a Gemini key in **API Keys** for fuller, open-ended answers.`;
+  }
+  // fallback
+  return `I can answer best about a **specific fish** (e.g. "is largemouth bass safe to eat?" or "how do I catch trout?"), **mercury/safety**, or **local spots**. Try naming a fish or a lake!\n\n_(Add a Gemini key in API Keys for open-ended answers.)_`;
+}
+
+/* ===================== coach chat ===================== */
+const CHIPS = ["Is pike safe to eat?","How do I catch trout?","Mercury basics","Best spots near me","Safe fish for kids"];
+function renderChips(){
+  $("chatChips").innerHTML = CHIPS.map(c=>`<button class="chip rounded-full border border-[var(--line)] bg-[var(--panel2)] px-2.5 py-1 text-[11px] font-bold sub hover:border-[var(--accent)]" data-chip="${c}">${c}</button>`).join("");
+  $("chatChips").querySelectorAll("[data-chip]").forEach(b=>b.addEventListener("click", ()=>{ $("chatInput").value=b.dataset.chip; sendChat(); }));
+}
+function updateCoachMode(){
+  $("coachMode").innerHTML = cfg.gemini
+    ? `<span class="flex items-center gap-1.5" style="color:var(--good)"><i data-lucide="sparkles" class="h-3.5 w-3.5"></i> Gemini AI connected</span>`
+    : `<span class="flex items-center gap-1.5" style="color:var(--accent)"><i data-lucide="cpu" class="h-3.5 w-3.5"></i> Offline coach (built-in knowledge) — add a Gemini key for more</span>`;
+  if(window.lucide) lucide.createIcons();
+}
+function renderChat(){
+  $("chatFeed").innerHTML = data.chat.map(m=>`
+    <div class="flex ${m.sender==="user"?"justify-end":"justify-start"}">
+      <div class="${m.sender==="user"?"msg-user":"msg-bot"} max-w-[85%] rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed">
+        ${m.sender==="bot"?marked.parse(m.text):m.text.replace(/</g,"&lt;")}</div></div>`).join("");
+  $("chatFeed").scrollTo(0,1e9);
+}
+async function sendChat(){
+  const text=$("chatInput").value.trim(); if(!text) return;
+  data.chat.push({sender:"user",text}); $("chatInput").value=""; renderChat();
+  if (!cfg.gemini){
+    // hardcoded offline path
+    data.chat.push({ sender:"bot", text: offlineReply(text) });
+    saveData(); renderChat(); return;
+  }
+  data.chat.push({sender:"bot",text:"_…thinking_"}); renderChat();
+  try{
+    const MODEL="gemini-flash-latest";
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${cfg.gemini}`;
+    const prompt=`You are Fish Coach, an expert fishing and fish-safety assistant. Warm, concise, emojis ok.
+For safety/mercury questions, use plain language, reference FDA/EPA tiers, note bigger/older predatory fish and mining-affected waters carry more mercury, and add it's informational not medical advice.
+Question: ${text}`;
+    const res=await fetch(url,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{ temperature:0.7, maxOutputTokens:1024 } }) });
+    if(!res.ok){ throw new Error(res.status===403?"key rejected (403)":"HTTP "+res.status); }
+    const d=await res.json(); data.chat[data.chat.length-1]={sender:"bot",text:d?.candidates?.[0]?.content?.parts?.[0]?.text||offlineReply(text)};
+  }catch(err){
+    // graceful fallback to offline brain
+    data.chat[data.chat.length-1]={sender:"bot",text:"_(Gemini unavailable — using offline coach)_\n\n"+offlineReply(text)};
+  }
+  saveData(); renderChat();
+}
+$("chatSend").addEventListener("click", sendChat);
+$("chatInput").addEventListener("keydown",e=>{ if(e.key==="Enter") sendChat(); });
+
+/* ===================== scan ===================== */
+let scanFile=null;
+function updateScanEngine(){ const el=$("scanEngine");
+  if(proxyOnline){ el.textContent="Fishial.ai"; el.style.color="var(--good)"; el.style.borderColor="var(--good)"; }
+  else if(cfg.gemini){ el.textContent="Gemini Vision"; el.style.color="var(--accent)"; el.style.borderColor="var(--accent)"; }
+  else { el.textContent="add key to scan"; el.style.color="var(--warn)"; el.style.borderColor="var(--warn)"; } }
+const drop=$("scanDrop"), scanInput=$("scanInput");
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("drag");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("drag");}));
+drop.addEventListener("drop",e=>{ const f=e.dataTransfer.files[0]; if(f) loadScanFile(f); });
+scanInput.addEventListener("change",e=>{ const f=e.target.files[0]; if(f) loadScanFile(f); });
+let scanDataUrl = null;
+function loadScanFile(file){ if(!file.type.startsWith("image/")){ toast("Choose an image","warn"); return; }
+  scanFile=file; scanDataUrl=null;
+  $("scanPreview").src=URL.createObjectURL(file); $("scanPreviewWrap").classList.remove("hidden"); $("scanResult").classList.add("hidden"); drop.classList.add("hidden");
+  // build a permanent, size-capped data URL so the photo survives save/reload
+  const img=new Image(); const tmp=URL.createObjectURL(file);
+  img.onload=()=>{ try{ let{width:w,height:h}=img; const s=Math.min(1,900/Math.max(w,h)); w=Math.round(w*s); h=Math.round(h*s);
+      const c=document.createElement("canvas"); c.width=w; c.height=h; c.getContext("2d").drawImage(img,0,0,w,h);
+      scanDataUrl=c.toDataURL("image/jpeg",0.82); }catch(e){ scanDataUrl=null; } URL.revokeObjectURL(tmp); };
+  img.onerror=()=>{ URL.revokeObjectURL(tmp); }; img.src=tmp;
+}
+$("scanClear").addEventListener("click",()=>{ scanFile=null; scanDataUrl=null; scanInput.value=""; $("scanPreviewWrap").classList.add("hidden"); $("scanResult").classList.add("hidden"); drop.classList.remove("hidden"); });
+$("scanBtn").addEventListener("click", async ()=>{
+  if(!scanFile) return;
+  $("scanStatus").classList.remove("hidden"); $("scanStatus").classList.add("flex"); $("scanResult").classList.add("hidden");
+  try{ let result;
+    if(proxyOnline){ $("scanStatusText").textContent="Sending to Fishial.ai…"; result=await scanWithFishial(scanFile); }
+    else if(cfg.gemini){ $("scanStatusText").textContent="Analyzing with Gemini Vision…"; result=await scanWithGemini(scanFile); }
+    else { toast("Add a Gemini key or start the Fishial proxy to scan","warn"); openSettings(); return; }
+    renderScanResult(result);
+  }catch(err){ console.error(err); toast("Scan failed: "+(err.message||err),"err");
+    $("scanResult").classList.remove("hidden"); $("scanResult").innerHTML=`<div class="card p-4 text-sm">Couldn't identify that one. ${proxyOnline?"Check the proxy terminal.":"Check your Gemini key."}</div>`;
+  }finally{ $("scanStatus").classList.add("hidden"); $("scanStatus").classList.remove("flex"); }
+});
+async function scanWithFishial(file){ const fd=new FormData(); fd.append("image",file,file.name||"fish.jpg");
+  const res=await fetch(cfg.proxy.replace(/\/$/,"")+"/recognize",{ method:"POST", body:fd }); if(!res.ok) throw new Error("proxy "+res.status);
+  const d=await res.json(); const first=d?.results?.[0]; if(!first||!first.species?.length) return { engine:"Fishial.ai", empty:true };
+  return { engine:"Fishial.ai", species:first.species.slice(0,4).map(s=>({ name:s.name, common:s["fishangler-data"]?.["common-name"]||"", accuracy:Math.round((s.accuracy||0)*100) })) }; }
+function fileToBase64(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(",")[1]); r.onerror=rej; r.readAsDataURL(file); }); }
+async function scanWithGemini(file){ const b64=await fileToBase64(file); const MODEL="gemini-flash-latest";
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${cfg.gemini}`;
+  const prompt=`Identify the animal in this photo (fish, crab, or other aquatic creature). Reply with ONLY compact JSON, no markdown fences, no prose:
+{"species":[{"common":"NAME","scientific":"LATIN","accuracy":85}],"est_weight_lbs":2,"est_length_in":14,"description":"one short sentence","notes":"brief reasoning"}
+Give 1-3 candidates. Use numbers for accuracy (0-100), weight, length. If you cannot tell, use 0. Always fill species with at least one best guess.`;
+  const body={ contents:[{ parts:[{text:prompt},{inline_data:{mime_type:file.type||"image/jpeg",data:b64}}] }],
+    generationConfig:{ temperature:0.2, maxOutputTokens:2048 } };
+  const res=await fetch(url,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
+  if(!res.ok){ const t=await res.text(); throw new Error("Gemini "+res.status+" "+t.slice(0,120)); }
+  const d=await res.json();
+  const rawTxt = d?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  const p = parseFishJSON(rawTxt);
+  const norm = a => { a = +a || 0; return Math.round(a<=1 ? a*100 : a); };
+  return { engine:"Gemini Vision", notes:p.notes||"", description:p.description||"",
+    weight:(+p.est_weight_lbs>0?+(+p.est_weight_lbs).toFixed(1):null),
+    length:(+p.est_length_in>0?+(+p.est_length_in).toFixed(1):null),
+    species:(p.species||[]).map(s=>({ name:s.scientific||s.common||"Unknown", common:s.common||"", accuracy:norm(s.accuracy) })) }; }
+
+/* Robust JSON extraction for model replies that may wrap JSON in prose,
+   code fences, or include trailing commas. Tries several strategies. */
+function parseFishJSON(raw){
+  if(!raw) return { species:[], notes:"Empty response from the model." };
+  let t = String(raw).replace(/```json/gi,"").replace(/```/g,"").trim();
+
+  let obj = null;
+  // 1) straight parse
+  try { obj = JSON.parse(t); } catch(e){}
+  // if straight parse gave a bare array, treat it as the species list
+  if(Array.isArray(obj)) obj = { species: obj };
+  // 2) outermost {...} block, strip trailing commas
+  if(!obj){
+    const first = t.indexOf("{"), last = t.lastIndexOf("}");
+    if(first!==-1 && last!==-1 && last>first){
+      let block = t.slice(first,last+1).replace(/,\s*([}\]])/g,"$1");
+      try { obj = JSON.parse(block); } catch(e){}
+    }
+  }
+  // 3) maybe it's a bare array of species
+  if(!obj){
+    const fa = t.indexOf("["), la = t.lastIndexOf("]");
+    if(fa!==-1 && la!==-1 && la>fa){
+      try { const arr = JSON.parse(t.slice(fa,la+1)); if(Array.isArray(arr)) obj = { species:arr }; } catch(e){}
+    }
+  }
+  if(!obj){
+    // 4) TRUNCATION RECOVERY: response was cut off mid-JSON. Pull out species objects by regex.
+    const found = [];
+    const re = /"common"\s*:\s*"([^"]*)"[^}]*?(?:"scientific"\s*:\s*"([^"]*)")?[^}]*?(?:"accuracy"\s*:\s*([\d.]+))?/g;
+    let m;
+    while((m = re.exec(t)) !== null){
+      if(m[1]) found.push({ common:m[1], scientific:m[2]||"", accuracy:m[3]?+m[3]:0 });
+    }
+    // grab any weight/length/description that survived
+    const wl = t.match(/"est_weight_lbs"\s*:\s*([\d.]+)/), ll = t.match(/"est_length_in"\s*:\s*([\d.]+)/);
+    const desc = t.match(/"description"\s*:\s*"([^"]*)"/), notes = t.match(/"notes"\s*:\s*"([^"]*)"/);
+    if(found.length){
+      return { species:found, est_weight_lbs:wl?+wl[1]:0, est_length_in:ll?+ll[1]:0,
+               description:desc?desc[1]:"", notes:notes?notes[1]:"" };
+    }
+    // truly nothing usable — return a clean empty (never leak raw JSON)
+    return { species:[], notes:"" };
+  }
+
+  // Some models double-encode: {"species":"[{...}]"} — parse nested strings
+  if(typeof obj.species === "string"){ try { obj.species = JSON.parse(obj.species); } catch(e){ obj.species = []; } }
+  // Or wrap everything under a top-level key
+  if(!obj.species){
+    const alt = obj.result || obj.data || obj.fish || obj.identification;
+    if(alt && typeof alt==="object") obj = Array.isArray(alt) ? { species:alt } : alt;
+  }
+  // Normalize: single object → array
+  if(obj.species && !Array.isArray(obj.species)) obj.species = [obj.species];
+  // Accept common alternate field names on each candidate
+  if(Array.isArray(obj.species)){
+    obj.species = obj.species.map(s => ({
+      common: s.common || s.common_name || s.commonName || s.name || "",
+      scientific: s.scientific || s.scientific_name || s.scientificName || s.latin || "",
+      accuracy: s.accuracy!=null ? s.accuracy : (s.confidence!=null ? s.confidence : (s.probability!=null ? s.probability*100 : 0))
+    }));
+  }
+  // If the model put a single fish at top level (no species array)
+  if((!obj.species || !obj.species.length) && (obj.common || obj.common_name || obj.scientific || obj.name)){
+    obj.species = [{ common:obj.common||obj.common_name||obj.name||"", scientific:obj.scientific||obj.scientific_name||"", accuracy:obj.accuracy||obj.confidence||0 }];
+  }
+  obj.species = obj.species || [];
+  return obj;
+}
+
+/* Offline estimator — fills log details from the built-in FISH table when there's no key,
+   or when Fishial returns a species but no measurements. Uses the species' typical range. */
+function estimateDetailsFor(commonOrSci){
+  const key = Object.keys(FISH).find(k => (commonOrSci||"").toLowerCase().includes(k.split(" ")[0].toLowerCase()));
+  if(!key) return { weight:null, length:null, description:"Nice catch! Add a note about the spot, bait, and conditions.", matched:null };
+  const f = FISH[key];
+  // rough typical keeper sizes per species (illustrative), varied a little so entries aren't identical
+  const TYP = { "Rainbow Trout":[1.5,13],"Largemouth Bass":[3.2,16],"Smallmouth Bass":[2.4,15],"Bluegill":[0.5,8],
+    "Black Crappie":[0.8,10],"Channel Catfish":[4.0,20],"Common Carp":[6.0,24],"Striped Bass":[8.0,26],
+    "Northern Pike":[7.0,30],"Walleye":[3.5,20] }[key] || [2.0,14];
+  const jitter = (base,pct)=>+(base*(1+(Math.random()-0.5)*pct)).toFixed(1);
+  return { weight:jitter(TYP[0],0.4), length:jitter(TYP[1],0.25),
+    description:`${key} in good condition — ${f.eat}`, matched:key };
+}
+function renderScanResult(r){
+  const box=$("scanResult"); box.classList.remove("hidden");
+  if(r.empty||!r.species?.length){
+    let note = (r.notes||"").trim();
+    // never show raw JSON or code to the user
+    if(!note || note.charAt(0)==="{" || note.charAt(0)==="[" || note.indexOf('"species"')!==-1 || note.indexOf('"notes"')!==-1) note = "";
+    // clean any stray braces/quotes just in case
+    note = note.replace(/[{}\[\]]/g,"").trim();
+    const msg = note ? note : "No fish detected in this photo. Try a clear, well-lit picture of a single fish filling most of the frame.";
+    box.innerHTML=`<div class="card p-4 text-sm"><p class="font-bold">Hmm, no fish here 🐟</p>
+      <p class="mt-1 sub">${msg}</p></div>`;
+    return;
+  }
+  const top=r.species[0];
+  // Fill in log details: prefer engine-provided (Gemini) estimates, else offline estimator.
+  const est = estimateDetailsFor(top.common||top.name);
+  const weight = (r.weight!=null? r.weight : est.weight);
+  const length = (r.length!=null? r.length : est.length);
+  const desc   = (r.description || est.description || "");
+  const detailBits = [];
+  if(weight!=null) detailBits.push(`${weight} lbs`);
+  if(length!=null) detailBits.push(`${length} in`);
+  box.innerHTML=`<div class="card overflow-hidden">
+    <div class="flex items-center gap-2 border-b border-[var(--line)] px-4 py-2.5"><i data-lucide="badge-check" class="h-4 w-4" style="color:var(--good)"></i><span class="text-sm font-black">Best match</span>
+      <span class="ml-auto rounded-full px-2 py-0.5 text-[10px] font-black" style="background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)">via ${r.engine}</span></div>
+    <div class="p-4"><p class="text-lg font-black">${top.common||top.name}</p>${top.common?`<p class="mono text-xs italic sub">${top.name}</p>`:""}
+      <div class="mt-2 flex items-center gap-2"><div class="accuracy-bar flex-1"><div class="accuracy-fill" style="width:${top.accuracy}%"></div></div><span class="mono text-xs font-black" style="color:var(--good)">${top.accuracy}%</span></div>
+      ${detailBits.length?`<div class="mt-3 flex flex-wrap gap-2">${detailBits.map(b=>`<span class="rounded-md bg-[var(--panel2)] px-2 py-1 text-xs font-bold sub">${b}</span>`).join("")}<span class="rounded-md px-2 py-1 text-[10px] font-black" style="background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)">auto-detected</span></div>`:""}
+      ${desc?`<p class="mt-2 text-xs sub">${desc}</p>`:""}
+      ${r.notes?`<p class="mt-1 text-[11px] sub italic">${r.notes}</p>`:""}
+      <div class="mt-4 flex gap-2">
+        <button id="logThis" class="flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-black text-white" style="background:var(--accent)"><i data-lucide="notebook-pen" class="h-4 w-4"></i> Save to log</button>
+        <button id="safetyThis" class="rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-3 text-sm font-bold sub">Check safety</button></div>
+      <p class="mt-2 text-center text-[10px] sub">Species, size & notes filled in automatically — no typing needed.</p></div></div>`;
+  if(window.lucide) lucide.createIcons();
+  $("logThis").addEventListener("click",()=>{
+    addCatch({ species:top.common||top.name, scientific:top.name, accuracy:top.accuracy, engine:r.engine,
+      photo:(scanDataUrl || $("scanPreview").src), weight, length, notes:desc });
+    toast("Auto-logged with details 🎣","ok"); go("log"); });
+  $("safetyThis").addEventListener("click",()=>{ const match=Object.keys(FISH).find(k=>(top.common||top.name||"").toLowerCase().includes(k.split(" ")[0].toLowerCase())); if(match) $("statSpecies").value=match; go("stats"); });
+}
+
+/* ===================== log ===================== */
+function addCatch(c){ data.catches.unshift({ id:Date.now(), date:new Date().toISOString(), species:c.species||"Unknown", scientific:c.scientific||"",
+  accuracy:c.accuracy??null, engine:c.engine||"manual", weight:c.weight||null, length:c.length||null, notes:c.notes||"", photo:c.photo||null }); saveData(); renderLog(); renderHomeCatches(); }
+function renderLog(){
+  $("logCount").textContent = data.catches.length + (data.catches.length===1?" catch":" catches");
+  const total=data.catches.length, species=new Set(data.catches.map(c=>c.species)).size, heaviest=data.catches.reduce((m,c)=>c.weight&&c.weight>m?c.weight:m,0);
+  $("logStats").innerHTML=[["Total",total,"fish"],["Species",species,"kinds"],["Heaviest",heaviest||"—",heaviest?"lbs":""]]
+    .map(([l,v,u])=>`<div class="card p-3 text-center"><p class="text-2xl font-black" style="color:var(--accent)">${v}</p><p class="text-[10px] uppercase tracking-widest sub">${l} ${u}</p></div>`).join("");
+  if(!data.catches.length){ $("logList").innerHTML=`<p class="card p-6 text-center text-sm sub">No catches yet. Scan a fish or tap <b>Add</b>.</p>`; return; }
+  $("logList").innerHTML=data.catches.map(c=>`<div class="card flex gap-3 p-3 cursor-pointer hover:border-[var(--accent)]" data-open="${c.id}">
+    ${c.photo?`<img src="${c.photo}" class="h-16 w-16 flex-none rounded-lg object-cover" alt=""/>`:`<div class="flex h-16 w-16 flex-none items-center justify-center rounded-lg bg-[var(--panel2)]"><i data-lucide="fish" class="h-7 w-7 sub"></i></div>`}
+    <div class="min-w-0 flex-1"><div class="flex items-center gap-2"><p class="truncate text-sm font-black">${c.species}</p>
+      ${c.accuracy!=null?`<span class="mono flex-none rounded-full px-1.5 py-0.5 text-[10px] font-black" style="background:color-mix(in srgb,var(--good) 15%,transparent);color:var(--good)">${c.accuracy}%</span>`:""}</div>
+      ${c.scientific?`<p class="mono truncate text-xs italic sub">${c.scientific}</p>`:""}
+      <p class="mt-0.5 text-xs sub">${new Date(c.date).toLocaleDateString([],{month:"short",day:"numeric"})}${c.weight?` · ${c.weight} lbs`:""}${c.length?` · ${c.length}"`:""}${c.engine!=="manual"?` · <span style="color:var(--accent)">${c.engine}</span>`:""}</p>
+      ${c.notes?`<p class="mt-1 truncate text-xs sub">${c.notes}</p>`:""}</div>
+    <div class="flex flex-none items-center gap-1 self-start">
+      <i data-lucide="maximize-2" class="h-4 w-4 sub"></i>
+      <button data-del="${c.id}" class="rounded-md p-1.5 sub hover:text-[var(--hot)]"><i data-lucide="trash-2" class="h-4 w-4"></i></button></div></div>`).join("");
+  $("logList").querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",(e)=>{ e.stopPropagation(); data.catches=data.catches.filter(c=>c.id!=b.dataset.del); saveData(); renderLog(); renderHomeCatches(); }));
+  $("logList").querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>openCatchDetail(b.dataset.open)));
+  if(window.lucide) lucide.createIcons();
+}
+
+/* ---- catch detail view: large image left, details right, minimize ---- */
+function openCatchDetail(id){
+  const c = data.catches.find(x=>x.id==id); if(!c) return;
+  lastDetailId = id; if(typeof removeRestoreChip==="function") removeRestoreChip();
+  const v = (()=>{ const key=Object.keys(FISH).find(k=>(c.species||"").toLowerCase().includes(k.split(" ")[0].toLowerCase()));
+    if(!key) return null; const w=WATERS.find(x=>x.id==($("statWater").value))||visibleWaters()[0]||WATERS[0];
+    return { key, verdict:verdictFor(key, w, acct?.group||"general"), water:w, fish:FISH[key] }; })();
+  const rows = [];
+  if(c.scientific) rows.push(["Scientific", `<i>${c.scientific}</i>`]);
+  if(c.accuracy!=null) rows.push(["ID confidence", `${c.accuracy}%`]);
+  rows.push(["Logged", new Date(c.date).toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})]);
+  if(c.weight!=null) rows.push(["Weight", `${c.weight} lbs`]);
+  if(c.length!=null) rows.push(["Length", `${c.length} in`]);
+  rows.push(["Source", c.engine==="manual"?"Manual entry":c.engine]);
+  if(v) rows.push(["Typical bait", v.fish.bait]);
+
+  $("detailBody").innerHTML = `
+    <div class="grid gap-4 md:grid-cols-2">
+      <div class="flex items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--panel2)] p-2">
+        ${c.photo?`<img src="${c.photo}" class="max-h-[60vh] w-full rounded-lg object-contain" alt="${c.species}"/>`
+                 :`<div class="flex h-64 w-full items-center justify-center"><i data-lucide="fish" class="h-16 w-16 sub"></i></div>`}
+      </div>
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <h3 class="text-xl font-black">${c.species}</h3>
+          ${c.engine!=="manual"?`<span class="rounded-full px-2 py-0.5 text-[10px] font-black" style="background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)">${c.engine}</span>`:""}
+        </div>
+        ${c.notes?`<p class="mt-2 text-sm sub">${c.notes}</p>`:""}
+        <div class="mt-3 divide-y divide-[var(--line)] rounded-xl border border-[var(--line)]">
+          ${rows.map(([k,val])=>`<div class="flex items-center justify-between gap-3 px-3 py-2 text-sm"><span class="sub">${k}</span><span class="text-right font-bold">${val}</span></div>`).join("")}
+        </div>
+        ${v?`<div class="verdict ${v.verdict.level==='safe'?'v-safe':v.verdict.level==='limit'?'v-limit':'v-avoid'} mt-3">
+          <div class="flex items-center gap-2"><span class="text-2xl">${v.verdict.emoji}</span>
+            <div><p class="font-black" style="color:${v.verdict.level==='safe'?'var(--good)':v.verdict.level==='limit'?'var(--warn)':'var(--hot)'}">${v.verdict.title}</p>
+            <p class="text-[11px] sub">safety estimate for this species</p></div>
+            <span class="ml-auto rounded-full px-2.5 py-1 text-[11px] font-black" style="background:${v.verdict.level==='safe'?'var(--good)':v.verdict.level==='limit'?'var(--warn)':'var(--hot)'};color:#08131c">${v.verdict.servings}</span></div>
+        </div>
+        <button id="detailSafety" class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--panel2)] py-2.5 text-sm font-bold sub hover:border-[var(--accent)]"><i data-lucide="shield-check" class="h-4 w-4"></i> Full safety analytics</button>`:""}
+      </div>
+    </div>`;
+  $("detailModal").style.display = "flex";
+  if(window.lucide) lucide.createIcons();
+  if(v){ const b=$("detailSafety"); if(b) b.addEventListener("click",()=>{ $("statSpecies").value=v.key; $("detailModal").style.display="none"; go("stats"); }); }
+}
+function renderHomeCatches(){ if(!data.catches.length){ $("homeCatches").innerHTML=`<p class="card p-4 text-center text-sm sub">No catches yet. Scan a fish to start your log.</p>`; return; }
+  $("homeCatches").innerHTML=data.catches.slice(0,3).map(c=>`<div class="card flex items-center gap-3 p-3">
+    ${c.photo?`<img src="${c.photo}" class="h-11 w-11 flex-none rounded-lg object-cover" alt=""/>`:`<div class="flex h-11 w-11 flex-none items-center justify-center rounded-lg bg-[var(--panel2)]"><i data-lucide="fish" class="h-5 w-5 sub"></i></div>`}
+    <div class="min-w-0 flex-1"><p class="truncate text-sm font-black">${c.species}</p><p class="text-xs sub">${new Date(c.date).toLocaleDateString([],{month:"short",day:"numeric"})}${c.weight?` · ${c.weight} lbs`:""}</p></div></div>`).join("");
+  if(window.lucide) lucide.createIcons(); }
+/* detail modal controls */
+let lastDetailId = null;
+function closeDetail(){ $("detailModal").style.display="none"; }
+document.addEventListener("click", e=>{ if(e.target && e.target.id==="detailModal") closeDetail(); });
+$("detailClose").addEventListener("click", ()=>{ lastDetailId=null; closeDetail(); removeRestoreChip(); });
+$("detailMin").addEventListener("click", ()=>{ closeDetail(); showRestoreChip(); });
+function showRestoreChip(){
+  if(!lastDetailId){ // capture the currently open catch id from the body's data if present
+  }
+  removeRestoreChip();
+  const chip=document.createElement("button");
+  chip.id="detailRestore";
+  chip.className="toast flex items-center gap-2 rounded-full border border-[var(--accent)] bg-[var(--panel)] px-3 py-2 text-xs font-black shadow-xl";
+  chip.style.color="var(--accent)";
+  chip.innerHTML='<i data-lucide="maximize-2" class="h-3.5 w-3.5"></i> Reopen catch details';
+  chip.addEventListener("click", ()=>{ if(lastDetailId) openCatchDetail(lastDetailId); removeRestoreChip(); });
+  document.getElementById("toasts").appendChild(chip);
+  if(window.lucide) lucide.createIcons();
+}
+function removeRestoreChip(){ const c=$("detailRestore"); if(c) c.remove(); }
+
+$("addManual").addEventListener("click",()=>$("manualModal").style.display="flex");
+$("mCancel").addEventListener("click",()=>$("manualModal").style.display="none");
+$("mSave").addEventListener("click",()=>{ const sp=$("mSpecies").value.trim(); if(!sp){ toast("Enter a species","warn"); return; }
+  addCatch({ species:sp, weight:parseFloat($("mWeight").value)||null, length:parseFloat($("mLength").value)||null, notes:$("mNotes").value.trim() });
+  ["mSpecies","mWeight","mLength","mNotes"].forEach(id=>$(id).value=""); $("manualModal").style.display="none"; toast("Catch logged 🎣","ok"); });
+
+/* ===================== accounts ===================== */
+function dataKey(id){ return "fishai_data_"+id; }
+function blankData(){ return { chat:[{ sender:"bot", text:"👋 Hey! I'm **Fish Coach**. Ask me anything about fishing, or whether a fish is safe to eat. I work offline — add a Gemini key later for more. 🎣" }], catches:[] }; }
+function loadData(id){ return store.get(dataKey(id), blankData()); }
+function saveData(){ if(acct) store.set(dataKey(acct.id), data); }
+function enterAccount(a){
+  acct=a; data=loadData(a.id); store.set("fishai_active", a.id);
+  $("acctName").textContent=a.name; $("acctAvatar").textContent=a.name.slice(0,1).toUpperCase(); $("acctAvatar").style.background=a.color;
+  const g=GROUPS.find(x=>x.id===a.group)||GROUPS[0]; $("homeHeadline").textContent=`Welcome back, ${a.name} ${g.icon}`;
+  renderChat(); renderChips(); updateCoachMode(); renderLog(); renderHomeCatches(); renderHomeSafety();
+  $("onboard").style.display="none"; document.body.style.overflow="";
+  toast(`Signed in as ${a.name}`,"ok");
+}
+function switchAccount(id){ if(acct&&acct.id===id){ $("acctMenu").classList.add("hidden"); return; } saveData(); const a=accounts.find(x=>x.id===id); if(!a) return; enterAccount(a); $("acctMenu").classList.add("hidden"); }
+function logout(){ saveData(); acct=null; data=null; store.del("fishai_active"); $("acctMenu").classList.add("hidden"); openOnboarding(); }
+function renderAcctList(){
+  $("acctList").innerHTML = accounts.map(a=>`<button data-sw="${a.id}" class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-bold hover:bg-[var(--panel2)]">
+    <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black text-white" style="background:${a.color}">${a.name.slice(0,1).toUpperCase()}</span>
+    <span class="flex-1 text-left">${a.name}</span>${acct&&acct.id===a.id?`<i data-lucide="check" class="h-4 w-4" style="color:${a.color}"></i>`:""}</button>`).join("");
+  $("acctList").querySelectorAll("[data-sw]").forEach(b=>b.addEventListener("click",()=>switchAccount(b.dataset.sw)));
+  if(window.lucide) lucide.createIcons();
+}
+$("acctBtn").addEventListener("click",(e)=>{ e.stopPropagation(); renderAcctList(); $("acctMenu").classList.toggle("hidden"); });
+document.addEventListener("click",e=>{ if(!$("acctMenu").contains(e.target)&&!$("acctBtn").contains(e.target)) $("acctMenu").classList.add("hidden"); });
+$("addAcct").addEventListener("click",()=>{ $("acctMenu").classList.add("hidden"); openOnboarding(); });
+$("logoutBtn").addEventListener("click", logout);
+
+function renderHomeSafety(){
+  const worst = visibleWaters().slice().sort((a,b)=>b.hgFactor-a.hgFactor)[0];
+  const v = verdictFor("Largemouth Bass", worst, acct?.group||"general");
+  const vcolor = v.level==="safe"?"var(--good)":v.level==="limit"?"var(--warn)":"var(--hot)";
+  const vc = v.level==='safe'?'v-safe':v.level==='limit'?'v-limit':'v-avoid';
+  $("homeSafety").innerHTML = `<button data-goto="stats" class="verdict ${vc} flex w-full items-center gap-3 text-left">
+    <span class="text-2xl">${v.emoji}</span><span class="min-w-0 flex-1">
+      <span class="block text-sm font-black" style="color:${vcolor}">${v.title} — ${worst.name}</span>
+      <span class="block text-xs sub">Bass here: ${v.hg} ppm mercury · tap for live analytics</span></span>
+    <i data-lucide="chevron-right" class="h-4 w-4 sub"></i></button>`;
+  $("homeSafety").querySelector("[data-goto]").addEventListener("click", ()=>go("stats"));
+  if(window.lucide) lucide.createIcons();
+}
+
+let obColor=COLORS[0], obGroup="general";
+function renderObChoosers(){
+  $("obColors").innerHTML=""; COLORS.forEach(c=>{ const b=document.createElement("button"); b.className="h-8 w-8 rounded-full border-2 transition";
+    b.style.background=c+"44"; b.style.borderColor=obColor===c?c:"var(--line)"; if(obColor===c) b.style.boxShadow=`0 0 10px ${c}`;
+    b.addEventListener("click",()=>{ obColor=c; renderObChoosers(); }); $("obColors").appendChild(b); });
+  $("obGroup").innerHTML = GROUPS.map(g=>`<button data-g="${g.id}" class="rounded-lg border px-3 py-2.5 text-left text-xs font-bold ${obGroup===g.id?'':'sub'}" style="border-color:${obGroup===g.id?'var(--accent)':'var(--line)'};background:${obGroup===g.id?'color-mix(in srgb,var(--accent) 10%,transparent)':'transparent'}"><span class="text-base">${g.icon}</span><br/>${g.label}</button>`).join("");
+  $("obGroup").querySelectorAll("[data-g]").forEach(b=>b.addEventListener("click",()=>{ obGroup=b.dataset.g; renderObChoosers(); }));
+}
+function openOnboarding(){
+  $("obName").value=""; $("obError").classList.add("hidden"); obColor=COLORS[accounts.length%COLORS.length]; obGroup="general"; renderObChoosers();
+  if(accounts.length){ $("obExisting").classList.remove("hidden");
+    $("obAccounts").innerHTML=accounts.map(a=>`<button data-e="${a.id}" class="acct-chip rounded-full border px-3 py-1.5 text-xs font-black" style="border-color:${a.color};color:${a.color}">${a.name.slice(0,1).toUpperCase()} · ${a.name}</button>`).join("");
+    $("obAccounts").querySelectorAll("[data-e]").forEach(b=>b.addEventListener("click",()=>{ const a=accounts.find(x=>x.id===b.dataset.e); enterAccount(a); }));
+  } else $("obExisting").classList.add("hidden");
+  $("onboard").style.display="flex"; document.body.style.overflow="hidden"; setTimeout(()=>$("obName").focus(),60);
+}
+$("obSubmit").addEventListener("click",()=>{ const name=$("obName").value.trim();
+  if(!name){ $("obError").textContent="Enter a name to fish under."; $("obError").classList.remove("hidden"); return; }
+  const a={ id:"a"+Date.now(), name, color:obColor, group:obGroup }; accounts.push(a); store.set("fishai_accounts",accounts);
+  enterAccount(a); toast(`Profile "${name}" created`,"ok"); });
+$("obName").addEventListener("keydown",e=>{ if(e.key==="Enter") $("obSubmit").click(); });
+
+/* ===================== settings ===================== */
+function openSettings(){ $("settingsBackdrop").classList.remove("hidden"); $("settingsDrawer").classList.remove("closed"); $("keyGemini").value=cfg.gemini; refreshKeyStatus(); if(typeof applyLogo==="function") applyLogo(); }
+function closeSettings(){ $("settingsBackdrop").classList.add("hidden"); $("settingsDrawer").classList.add("closed"); }
+$("apiRail").addEventListener("click", openSettings);
+$("closeSettings").addEventListener("click", closeSettings);
+$("settingsBackdrop").addEventListener("click", closeSettings);
+$("showGemini").addEventListener("change",e=>$("keyGemini").type=e.target.checked?"text":"password");
+function updateApiRail(){ const on=cfg.gemini||proxyOnline; $("apiRailDot").style.background = on?"var(--good)":"var(--warn)"; }
+function refreshKeyStatus(){
+  $("geminiStatus").textContent=cfg.gemini?"active":"not set"; $("geminiStatus").style.color=cfg.gemini?"var(--good)":"var(--sub)";
+  $("fishialStatus") && ($("fishialStatus").textContent=proxyOnline?"proxy online":(cfg.proxy?"proxy offline":"proxy off"));
+  updateApiRail();
+}
+async function pingProxy(){ if(!cfg.proxy){ proxyOnline=false; updateScanEngine(); updateApiRail(); return; }
+  try{ const r=await fetch(cfg.proxy.replace(/\/$/,"")+"/health"); proxyOnline=r.ok; }catch(e){ proxyOnline=false; } updateScanEngine(); refreshKeyStatus(); }
+/* Fishial proxy removed — scan is Gemini-only. */
+$("saveKeys").addEventListener("click",async()=>{ cfg.gemini=$("keyGemini").value.trim(); store.set("fishai_cfg",cfg);
+  updateScanEngine(); refreshKeyStatus(); updateCoachMode(); toast("Saved locally ✓","ok"); closeSettings(); });
+
+/* ===================== app logo ===================== */
+let appLogo = store.get("sunken_logo", null);
+function logoImg(cls){ return `<img src="${appLogo}" class="${cls} h-full w-full object-cover" alt="logo"/>`; }
+function applyLogo(){
+  const header=$("brandHeader"), onb=$("brandOnboard"), prev=$("logoPreview");
+  if(appLogo){
+    if(header) header.innerHTML = logoImg("");
+    if(onb) onb.innerHTML = logoImg("");
+    if(prev) prev.innerHTML = logoImg("");
+    if($("logoStatus")) $("logoStatus").textContent="custom";
+    if($("logoClear")) $("logoClear").classList.remove("hidden");
+  } else {
+    if(header) header.innerHTML = `<i data-lucide="fish" class="h-5 w-5" style="color:var(--accent)"></i>`;
+    if(onb) onb.innerHTML = `<i data-lucide="fish" class="h-6 w-6" style="color:var(--accent)"></i>`;
+    if(prev) prev.innerHTML = `<i data-lucide="fish" class="h-6 w-6" style="color:var(--accent)"></i>`;
+    if($("logoStatus")) $("logoStatus").textContent="default";
+    if($("logoClear")) $("logoClear").classList.add("hidden");
+    if(window.lucide) lucide.createIcons();
+  }
+}
+$("logoInput") && $("logoInput").addEventListener("change", async e=>{
+  const f=e.target.files[0]; if(!f||!f.type.startsWith("image/")){ toast("Choose an image","warn"); return; }
+  try{
+    const img=new Image(); const url=URL.createObjectURL(f);
+    await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=url; });
+    let{width:w,height:h}=img; const s=Math.min(1,256/Math.max(w,h)); w=Math.round(w*s); h=Math.round(h*s);
+    const c=document.createElement("canvas"); c.width=w; c.height=h; c.getContext("2d").drawImage(img,0,0,w,h);
+    URL.revokeObjectURL(url);
+    appLogo=c.toDataURL("image/png"); store.set("sunken_logo",appLogo); applyLogo(); toast("Logo updated ✨","ok");
+  }catch(err){ toast("Couldn't load that image","err"); }
+  e.target.value="";
+});
+$("logoClear") && $("logoClear").addEventListener("click", ()=>{ appLogo=null; store.del("sunken_logo"); applyLogo(); toast("Logo reset","info"); });
+
+/* ===================== boot ===================== */
+applyTheme(); initMap(); renderSpotList(); buildStatsControls(); updateScanEngine(); updateApiRail(); lucide.createIcons(); pingProxy(); applyLogo();
+const resume = accounts.find(a=>a.id===store.get("fishai_active", null));
+if(resume) enterAccount(resume); else openOnboarding();
+</script>
+</body>
+</html>
