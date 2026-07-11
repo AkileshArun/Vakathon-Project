@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Sunken.AI</title>
 
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -13,19 +17,35 @@
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
 
 <style>
-  :root{ --bg:#10141a; --panel:#151b22; --panel2:#232c3a; --line:#2a3644; --text:#e7edf3; --sub:#94a3b8;
-         --accent:#43b0f1; --good:#5ad19a; --warn:#f1c343; --hot:#f16a6a; }
-  body.light{ --bg:#eaf4fb; --panel:#ffffff; --panel2:#e3f0fa; --line:#c5ddef; --text:#0d2a41; --sub:#5a7690;
-              --accent:#1f8fd0; --good:#1f9e6a; --warn:#c78a12; --hot:#d9534f; }
-  html,body{ background:var(--bg); color:var(--text); font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; transition:background .25s,color .25s; }
+  :root{ --bg:#071a2b; --panel:#0e2842; --panel2:#12314f; --line:#1d3f5c; --text:#e8f3fb; --sub:#8fb0c9;
+         --accent:#2dd4d4; --accent2:#3b9ae1; --good:#4fd1a0; --warn:#f0c04a; --hot:#f26d6d; }
+  body.light{ --bg:#e8f2f9; --panel:#ffffff; --panel2:#dcecf7; --line:#bcd8ec; --text:#0a2438; --sub:#4d7189;
+              --accent:#0e9aa7; --accent2:#2b7fc4; --good:#12a06a; --warn:#c2900f; --hot:#d64f4f; }
+  html,body{ background:var(--bg); color:var(--text); font-family:"Inter",ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; transition:background .25s,color .25s; }
+  h1,h2,h3,.font-black,.font-bold{ font-family:"Space Grotesk",ui-sans-serif,system-ui,sans-serif; letter-spacing:-0.01em; }
+  .mono,.font-mono{ font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  /* deep ocean ambient background */
+  body{ background:
+      radial-gradient(140% 100% at 50% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
+      radial-gradient(120% 90% at 100% 110%, color-mix(in srgb, var(--accent2) 12%, transparent), transparent 60%),
+      var(--bg); background-attachment:fixed; }
+  /* waterline under header */
+  header{ position:relative; }
+  header::after{ content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px;
+    background:linear-gradient(90deg, transparent, var(--accent), var(--accent2), transparent); opacity:.7; }
   .mono{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
   ::-webkit-scrollbar{ width:9px; height:9px; } ::-webkit-scrollbar-track{ background:var(--bg); } ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:8px; }
 
+  .tabbar-btn{ position:relative; transition:color .15s; }
   .tabbar-btn.active{ color:var(--accent); } .tabbar-btn.active .tb-icon{ transform:scale(1.12); } .tb-icon{ transition:transform .15s; }
+  .tabbar-btn.active::before{ content:""; position:absolute; top:0; left:50%; transform:translateX(-50%); width:26px; height:3px; border-radius:0 0 4px 4px; background:linear-gradient(90deg,var(--accent),var(--accent2)); }
   .screen{ display:none; } .screen.active{ display:block; animation:fade .25s ease; }
   @keyframes fade{ from{ opacity:0; transform:translateY(6px);} to{ opacity:1; transform:none; } }
 
-  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px; }
+  .card{ background:linear-gradient(180deg, color-mix(in srgb, var(--panel) 100%, transparent), color-mix(in srgb, var(--panel2) 55%, var(--panel)));
+    border:1px solid var(--line); border-radius:18px; box-shadow:0 6px 20px -8px rgba(0,0,0,.45), inset 0 1px 0 color-mix(in srgb, #fff 6%, transparent);
+    transition:transform .18s, box-shadow .18s, border-color .18s; }
+  button.card:hover, .card.hoverable:hover{ transform:translateY(-2px); box-shadow:0 12px 28px -10px rgba(0,0,0,.55); border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); }
   .sub{ color:var(--sub); }
 
   .msg-bot{ background:var(--panel2); border-top-left-radius:4px; }
@@ -56,10 +76,14 @@
   .accuracy-bar{ height:6px; border-radius:999px; background:color-mix(in srgb,var(--text) 12%,transparent); overflow:hidden; }
   .accuracy-fill{ height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent),var(--good)); }
 
-  .verdict{ border-radius:16px; padding:18px; border:1px solid; }
-  .v-safe{ background:color-mix(in srgb,var(--good) 12%,transparent); border-color:color-mix(in srgb,var(--good) 45%,transparent); }
-  .v-limit{ background:color-mix(in srgb,var(--warn) 14%,transparent); border-color:color-mix(in srgb,var(--warn) 45%,transparent); }
-  .v-avoid{ background:color-mix(in srgb,var(--hot) 14%,transparent); border-color:color-mix(in srgb,var(--hot) 45%,transparent); }
+  .verdict{ position:relative; border-radius:18px; padding:20px 20px 20px 24px; border:1px solid; overflow:hidden; }
+  .verdict::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:6px; }
+  .v-safe{ background:linear-gradient(120deg, color-mix(in srgb,var(--good) 18%,transparent), color-mix(in srgb,var(--good) 6%,transparent)); border-color:color-mix(in srgb,var(--good) 50%,transparent); box-shadow:0 0 30px -12px var(--good); }
+  .v-safe::before{ background:var(--good); }
+  .v-limit{ background:linear-gradient(120deg, color-mix(in srgb,var(--warn) 20%,transparent), color-mix(in srgb,var(--warn) 6%,transparent)); border-color:color-mix(in srgb,var(--warn) 50%,transparent); box-shadow:0 0 30px -12px var(--warn); }
+  .v-limit::before{ background:var(--warn); }
+  .v-avoid{ background:linear-gradient(120deg, color-mix(in srgb,var(--hot) 20%,transparent), color-mix(in srgb,var(--hot) 6%,transparent)); border-color:color-mix(in srgb,var(--hot) 50%,transparent); box-shadow:0 0 30px -12px var(--hot); }
+  .v-avoid::before{ background:var(--hot); }
 
   #onboard{ position:fixed; inset:0; z-index:2000; display:flex; align-items:flex-start; justify-content:center; padding:24px 16px;
             overflow-y:auto; -webkit-overflow-scrolling:touch;
@@ -96,10 +120,6 @@
     <p class="mt-1 text-xs sub">Saved locally on this device only. No cloud, no password, no tracking.</p>
     <label class="mt-5 mb-1 block text-[11px] uppercase tracking-widest sub" for="obName">Your name</label>
     <input id="obName" maxlength="24" placeholder="e.g. Alex" class="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" />
-    <label class="mt-4 mb-2 block text-[11px] uppercase tracking-widest sub">Who's fishing? <span class="normal-case">(tailors safety advice)</span></label>
-    <div id="obGroup" class="grid grid-cols-2 gap-2"></div>
-    <label class="mt-4 mb-2 block text-[11px] uppercase tracking-widest sub">Accent</label>
-    <div id="obColors" class="flex gap-2"></div>
     <button id="obSubmit" class="mt-6 w-full rounded-lg py-3 text-sm font-black text-white" style="background:var(--accent)">Start fishing →</button>
     <p id="obError" class="mt-2 hidden text-center text-xs" style="color:var(--hot)"></p>
     <div id="obExisting" class="mt-5 hidden border-t border-[var(--line)] pt-4">
@@ -179,9 +199,10 @@
       <div id="map" class="h-[400px] w-full"></div>
       <div id="routeBar" class="hidden border-t border-[var(--line)] px-4 py-2.5"></div>
       <div class="flex flex-wrap items-center gap-3 border-t border-[var(--line)] px-4 py-2 text-[11px] sub">
-        <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-full" style="background:var(--good)"></span>Safe</span>
-        <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-full" style="background:var(--warn)"></span>Limit</span>
-        <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-full" style="background:var(--hot)"></span>Advisory</span>
+        <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-full" style="background:#4fd1a0"></span>Safe 85+</span>
+        <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-full" style="background:#3b9ae1"></span>Fine 75+</span>
+        <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-full" style="background:#f0c04a"></span>Mild 60+</span>
+        <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-full" style="background:#f26d6d"></span>Caution</span>
         <span class="ml-auto mono" id="waterCount"></span>
       </div>
     </div>
@@ -321,17 +342,11 @@
   </div>
 
   <div class="card mt-4 p-4">
-    <div class="flex items-center gap-2"><i data-lucide="image-plus" class="h-4 w-4" style="color:var(--accent)"></i>
-      <h3 class="text-sm font-black">App Logo</h3><span id="logoStatus" class="ml-auto text-[10px] font-bold sub">default</span></div>
-    <p class="mt-1 text-xs sub">Upload a logo — it replaces the fish icon in the top bar and sign-in screen. Square images look best.</p>
-    <div class="mt-3 flex items-center gap-3">
-      <div id="logoPreview" class="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel2)]"><i data-lucide="fish" class="h-6 w-6" style="color:var(--accent)"></i></div>
-      <label class="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-[var(--line)] py-3 text-sm font-bold sub hover:border-[var(--accent)]">
-        <i data-lucide="upload" class="h-4 w-4"></i> Upload logo
-        <input id="logoInput" type="file" accept="image/*" class="hidden" />
-      </label>
-    </div>
-    <button id="logoClear" class="mt-2 hidden w-full rounded-lg border border-[var(--line)] py-2 text-xs font-bold sub hover:text-[var(--hot)]">Remove logo (back to default)</button>
+    <div class="flex items-center gap-2"><i data-lucide="trash-2" class="h-4 w-4" style="color:var(--hot)"></i>
+      <h3 class="text-sm font-black">Profile data</h3></div>
+    <p class="mt-1 text-xs sub">Clear this profile's saved chat history and catches, or delete the whole profile.</p>
+    <button id="clearDataBtn" class="mt-3 w-full rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-3 py-2.5 text-sm font-bold sub hover:border-[var(--hot)]">Clear current profile data</button>
+    <button id="deleteAccountBtn" class="mt-2 w-full rounded-lg border border-[var(--hot)] px-3 py-2.5 text-sm font-black" style="color:var(--hot)">Delete this profile</button>
   </div>
 
   <button id="saveKeys" class="mt-5 w-full rounded-lg py-3 text-sm font-black text-white" style="background:var(--accent)">Save keys</button>
@@ -405,7 +420,7 @@ function applyTheme(){
   $("themeToggle").innerHTML = `<i data-lucide="${cfg.theme==="light"?"sun":"moon"}" class="h-4 w-4"></i>`;
   if (window.lucide) lucide.createIcons();
 }
-$("themeToggle").addEventListener("click", ()=>{ cfg.theme=cfg.theme==="light"?"dark":"light"; store.set("fishai_cfg",cfg); applyTheme(); if(typeof applyLogo==="function") applyLogo(); if(map) setMapStyle($("mapStyle").value); });
+$("themeToggle").addEventListener("click", ()=>{ cfg.theme=cfg.theme==="light"?"dark":"light"; store.set("fishai_cfg",cfg); applyTheme(); if(map) setMapStyle($("mapStyle").value); });
 
 /* ===================== fish + water model ===================== */
 /* Each fish carries: mercury mean (ppm), a per-fish pH preference offset, and
@@ -462,13 +477,8 @@ const WATERS = [
   { id:10, name:"Quarry Lakes",            lat:37.5688, lng:-121.9860, kind:"Lake",      region:"bay", score:79, hgFactor:1.0, phBase:7.4, note:"Fremont; trout & catfish stocked.", official:"A chain of former quarry pits in Fremont/Union City managed by the East Bay Regional Park District. Horseshoe Lake is stocked with trout and catfish; lead tackle is banned here (free steel swaps at the kiosk). State license plus District permit required for anglers 16+." },
   { id:11, name:"Los Vaqueros Reservoir",  lat:37.8330, lng:-121.7300, kind:"Reservoir", region:"bay", score:90, hgFactor:1.2, phBase:7.6, note:"Brentwood; bass, striper, catfish." },
   { id:12, name:"Contra Loma Reservoir",   lat:37.9640, lng:-121.7830, kind:"Reservoir", region:"bay", score:75, hgFactor:1.3, phBase:7.3, note:"Antioch; stocked trout & catfish.", official:"An 80-acre reservoir in an Antioch regional park stocked with trout and catfish, also holding bass, bluegill and sunfish. Electric motor boats only; note the park district's invasive-mussel inspection rules." },
-  // --- other demo waters ---
-  { id:13, name:"Kenai Lake (AK)",         lat:60.4,    lng:-149.8,    kind:"Lake",      region:"all", score:96, hgFactor:0.6, phBase:7.8, note:"Pristine glacial lake." },
-  { id:14, name:"Gold Run Reservoir",      lat:39.1911, lng:-120.9,    kind:"Reservoir", region:"all", score:52, hgFactor:2.1, phBase:6.6, note:"Gold-rush legacy mercury — high.", official:"A Sierra reservoir in gold-country. Gold Rush miners used liquid mercury to extract gold, and that legacy contamination still drives high mercury in fish here — a vivid example of why big, old predators should be eaten sparingly, if at all." },
-  { id:15, name:"Clearwater Pond (VT)",    lat:44.2619, lng:-72.5806,  kind:"Pond",      region:"all", score:84, hgFactor:0.7, phBase:7.4, note:"Clean New England pond." },
 ];
-let currentRegion = "bay";
-function visibleWaters(){ return WATERS.filter(w=>w.region==="bay"); }
+function visibleWaters(){ return WATERS; }
 
 function seededRand(seed){ let x=Math.sin(seed)*10000; return x-Math.floor(x); }
 function effectiveHg(fishName, water){ return +(FISH[fishName].hg * water.hgFactor).toFixed(3); }
@@ -500,7 +510,7 @@ function go(tab){
   $("topSub").textContent = { home:"Fishing Companion", map:"Waters & Spots", scan:"Fish Recognition", stats:"Safety & Analytics", coach:"AI Fish Coach", log:"Catch Log" }[tab];
   if (tab==="map") setTimeout(()=>map.invalidateSize(), 60);
   if (tab==="coach") setTimeout(()=> $("chatFeed").scrollTo(0,1e9), 40);
-  if (tab==="stats") startStats(); else stopStatsStream();
+  if (tab==="stats"){ startStats(window._pendingSafetyWater); window._pendingSafetyWater=null; } else stopStatsStream();
   if (tab!=="scan" && typeof stopCamera==="function") stopCamera();
 }
 document.querySelectorAll(".tabbar-btn").forEach(b => b.addEventListener("click", ()=>go(b.dataset.tab)));
@@ -522,7 +532,11 @@ $("quickActions").querySelectorAll("[data-goto]").forEach(b => b.addEventListene
 /* ===================== map + routing ===================== */
 const scoreColor = s => s>=85?"var(--good)":s>=75?"var(--accent)":s>=60?"var(--warn)":"var(--hot)";
 const scoreLabel = s => s>=85?"Safe":s>=75?"Fine":s>=60?"Mild":"Caution";
-function safetyColorForWater(w){ return scoreColor(w.score); }
+function safetyColorForWater(w){
+  // color-coded pins by fishing-score tier (matches spec): green >=85, blue 75-84, yellow 60-74, red <60
+  const s = w.score;
+  return s>=85 ? "#4fd1a0" : s>=75 ? "#3b9ae1" : s>=60 ? "#f0c04a" : "#f26d6d";
+}
 
 let map, tileLayer, meMarker=null, homePos=null, selectedSpot=null;
 const TILES = {
@@ -570,18 +584,12 @@ function haversine(a,b){ const dLat=(b.lat-a.lat)*Math.PI/180, dLng=(b.lng-a.lng
   la1=a.lat*Math.PI/180, la2=b.lat*Math.PI/180;
   const h=Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2;
   return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)); }
-function switchToSafetyForWater(waterId){
-  const w = WATERS.find(x=>x.id==waterId); if(!w) return false;
-  if($("statWater")){ $("statWater").value = String(w.id); }
+window._safety = function(waterId){
+  const w = WATERS.find(x=>x.id==waterId); if(!w) return;
+  window._pendingSafetyWater = w.id;   // go('stats') will apply this after rebuilding the options
   go("stats");
-  requestAnimationFrame(()=>{
-    if($("statWater")){ $("statWater").value = String(w.id); }
-    if(typeof renderStats === "function") renderStats();
-  });
   toast(`Safety for ${w.name}`,"info");
-  return true;
-}
-window._safety = function(waterId){ return switchToSafetyForWater(waterId); };
+};
 window._select = function(waterId){
   const w = WATERS.find(x=>x.id==waterId); if(!w) return;
   selectedSpot = w;
@@ -729,7 +737,7 @@ function renderVerdict(){
           <h3 class="text-sm font-black">About ${water.name}</h3>
           <span class="ml-auto rounded-full px-2 py-0.5 text-[10px] font-black" style="background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent)">official sources</span></div>
         <p class="mt-2 text-sm sub leading-relaxed">${water.official}</p>
-        <p class="mt-2 text-[10px] sub">Summarized from OEHHA public info. Always check the current official advisory before eating your catch.</p>
+        <p class="mt-2 text-[10px] sub">Summarized from OEHHA / county / East Bay Regional Park District public info. Always check the current official advisory before eating your catch.</p>
       </div>`;
     } else {
       od.innerHTML = `<div class="card p-3"><p class="text-xs sub">📍 ${water.name}${water.note?` — ${water.note}`:""}. No detailed official write-up on file for this spot yet.</p></div>`;
@@ -757,9 +765,12 @@ function renderVerdict(){
   $("phBadge").style.color = phOk?"var(--good)":"var(--warn)";
 }
 function renderStats(){ drawMercury(); drawPh(); renderVerdict(); }
-function startStats(){
+function startStats(targetWaterId){
+  const keep = targetWaterId!=null ? String(targetWaterId) : $("statWater").value;
   refreshStatWaterOptions();
-  if (!WATERS.some(w=>w.id==$("statWater").value)) $("statWater").value=String(visibleWaters()[0].id);
+  // restore the intended selection (rebuilding options above resets the <select>)
+  if (WATERS.some(w=>String(w.id)===keep)) $("statWater").value = keep;
+  else $("statWater").value = String(visibleWaters()[0].id);
   renderStats();
 }
 function stopStatsStream(){ /* no-op: charts are static yearly history now */ }
@@ -771,6 +782,22 @@ $("askSafety").addEventListener("click", ()=>{
 /* ===================== HARDCODED OFFLINE COACH ===================== */
 function offlineReply(qRaw){
   const q = qRaw.toLowerCase();
+
+  // 0) CATCH-LOG questions — count from the user's actual log
+  if(/(how many|number of|count).*(catch|caught|fish|log)|caught (today|so far|this week|total)|my (catch|catches|log|fish|total)|catch log|my stats/.test(q)
+     || (/(caught|catches|logged)/.test(q) && /(today|week|total|many|log)/.test(q))){
+    const catches=(data?.catches)||[];
+    if(!catches.length) return "Your catch log is empty so far — scan a fish or add one manually and I'll keep count! 🎣";
+    const today=new Date().toDateString();
+    const todayN=catches.filter(c=>new Date(c.date).toDateString()===today).length;
+    const species=new Set(catches.map(c=>c.species)).size;
+    const heaviest=catches.reduce((m,c)=>c.weight&&c.weight>m?c.weight:m,0);
+    const heaviestFish=catches.find(c=>c.weight===heaviest);
+    if(/today/.test(q)) return `You've logged **${todayN}** ${todayN===1?"catch":"catches"} today. 🎣${todayN?" Nice work!":""}`;
+    const recent=catches.slice(0,5).map(c=>`• ${c.species}${c.weight?` (${c.weight} lbs)`:""} — ${new Date(c.date).toLocaleDateString()}`).join("\n");
+    return `**Your catch log** 🎣\n\nTotal: **${catches.length}** ${catches.length===1?"fish":"fish"}\nSpecies: **${species}**\nHeaviest: **${heaviest||"—"} lbs**${heaviestFish?` (${heaviestFish.species})`:""}\nCaught today: **${todayN}**\n\nMost recent:\n${recent}`;
+  }
+
   // 1) does the message name a known fish?
   const fishHit = Object.keys(FISH).find(f => q.includes(f.toLowerCase()) || q.includes(f.split(" ")[0].toLowerCase()));
   // 2) does it name a known water?
@@ -843,6 +870,45 @@ function renderChat(){
         ${m.sender==="bot"?marked.parse(m.text):m.text.replace(/</g,"&lt;")}</div></div>`).join("");
   $("chatFeed").scrollTo(0,1e9);
 }
+/* Assemble EVERYTHING the coach needs: all fish, all waters (mercury/pH/score/advisory),
+   the safety verdict for the current group, and the user's full catch log. */
+function buildCoachContext(){
+  const group = acct?.group || "general";
+  const groupLabel = (GROUPS.find(g=>g.id===group)||GROUPS[0]).label;
+  const fishLines = Object.keys(FISH).map(f=>{
+    const x=FISH[f];
+    return `- ${f} (${x.sci}): baseline mercury ${x.hg} ppm; pH pref ${x.phPref}; bait: ${x.bait}; eating: ${x.eat}`;
+  }).join("\n");
+  const waterLines = WATERS.map(w=>{
+    const perFish = Object.keys(FISH).map(f=>{
+      const v = verdictFor(f, w, group);
+      return `${f}: ${v.hg}ppm Hg, ${v.title} (${v.servings})`;
+    }).join("; ");
+    return `• ${w.name} (${w.kind}) — score ${w.score}/100, pH ~${w.phBase}, Hg factor ${w.hgFactor}x.${w.note?" Advisory: "+w.note:""}${w.official?" Official: "+w.official:""}\n    Fish here → ${perFish}`;
+  }).join("\n");
+  const catches = (data?.catches)||[];
+  const today = new Date().toDateString();
+  const todayCount = catches.filter(c=> new Date(c.date).toDateString()===today).length;
+  const logLines = catches.length
+    ? catches.map(c=>`- ${c.species}${c.scientific?` (${c.scientific})`:""}, ${new Date(c.date).toLocaleDateString()} ${new Date(c.date).toLocaleTimeString()}${c.weight?`, ${c.weight} lbs`:""}${c.length?`, ${c.length} in`:""}${c.notes?`, note: ${c.notes}`:""}`).join("\n")
+    : "(no catches logged yet)";
+  const species = new Set(catches.map(c=>c.species)).size;
+  const heaviest = catches.reduce((m,c)=>c.weight&&c.weight>m?c.weight:m,0);
+  return `=== SUNKEN.AI DATA (source of truth — use this to answer) ===
+CURRENT USER: ${acct?.name||"Angler"} · group: ${groupLabel} (safety thresholds adjust for this group)
+FDA reference: mercury action level 1.0 ppm; safe <0.15, limit 0.15-0.46, avoid >0.46 (stricter for sensitive groups).
+
+FISH SPECIES:
+${fishLines}
+
+WATERS & COMPUTED SAFETY (mercury already scaled by each water's factor):
+${waterLines}
+
+USER CATCH LOG (${catches.length} total; ${species} species; heaviest ${heaviest||"—"} lbs; caught today: ${todayCount}):
+${logLines}
+=== END DATA ===`;
+}
+
 async function sendChat(){
   const text=$("chatInput").value.trim(); if(!text) return;
   data.chat.push({sender:"user",text}); $("chatInput").value=""; renderChat();
@@ -855,9 +921,12 @@ async function sendChat(){
   try{
     const MODEL="gemini-flash-latest";
     const url=`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${cfg.gemini}`;
-    const prompt=`You are Fish Coach, an expert fishing and fish-safety assistant. Warm, concise, emojis ok.
-For safety/mercury questions, use plain language, reference FDA/EPA tiers, note bigger/older predatory fish and mining-affected waters carry more mercury, and add it's informational not medical advice.
-Question: ${text}`;
+    const prompt=`You are Fish Coach for the Sunken.AI app. Warm, concise, emojis ok.
+You have COMPLETE access to the app's data below — always use it as the source of truth. When asked whether a fish is safe to eat from a location, look up that fish in that water in the data, cite its mercury (ppm) and the water's pH, and give the verdict and servings shown. When asked about the user's catches (e.g. "how many did I catch today"), count from the USER CATCH LOG. If the data doesn't cover something, say so rather than guessing. For safety, note it's informational, not medical advice.
+
+${buildCoachContext()}
+
+User question: ${text}`;
     const res=await fetch(url,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{ temperature:0.7, maxOutputTokens:1024 } }) });
     if(!res.ok){ throw new Error(res.status===403?"key rejected (403)":"HTTP "+res.status); }
     const d=await res.json(); data.chat[data.chat.length-1]={sender:"bot",text:d?.candidates?.[0]?.content?.parts?.[0]?.text||offlineReply(text)};
@@ -1212,17 +1281,47 @@ function enterAccount(a){
 }
 function switchAccount(id){ if(acct&&acct.id===id){ $("acctMenu").classList.add("hidden"); return; } saveData(); const a=accounts.find(x=>x.id===id); if(!a) return; enterAccount(a); $("acctMenu").classList.add("hidden"); }
 function logout(){ saveData(); acct=null; data=null; store.del("fishai_active"); $("acctMenu").classList.add("hidden"); openOnboarding(); }
+function deleteAccountById(id){
+  const target = accounts.find(a=>a.id===id); if(!target) return;
+  if(!confirm(`Delete profile "${target.name}" and all its saved data?`)) return;
+  if(acct && acct.id===id) saveData();
+  accounts = accounts.filter(a=>a.id!==id);
+  store.set("fishai_accounts", accounts);
+  store.del(dataKey(id));
+  if(acct && acct.id===id){
+    const next = accounts[0];
+    if(next){ enterAccount(next); }
+    else { acct=null; data=null; store.del("fishai_active"); $("acctMenu").classList.add("hidden"); openOnboarding(); }
+  } else {
+    renderAcctList();
+  }
+  toast(`Deleted profile ${target.name}`,"info");
+}
+function clearCurrentAccountData(){
+  if(!acct){ toast("No active profile to clear","warn"); return; }
+  if(!confirm(`Clear all saved chat history and catches for ${acct.name}?`)) return;
+  data = blankData(); saveData();
+  renderChat(); renderChips(); updateCoachMode(); renderLog(); renderHomeCatches(); renderHomeSafety();
+  toast(`Cleared data for ${acct.name}`,"ok");
+}
 function renderAcctList(){
-  $("acctList").innerHTML = accounts.map(a=>`<button data-sw="${a.id}" class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-bold hover:bg-[var(--panel2)]">
-    <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black text-white" style="background:${a.color}">${a.name.slice(0,1).toUpperCase()}</span>
-    <span class="flex-1 text-left">${a.name}</span>${acct&&acct.id===a.id?`<i data-lucide="check" class="h-4 w-4" style="color:${a.color}"></i>`:""}</button>`).join("");
+  $("acctList").innerHTML = accounts.map(a=>`<div class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-bold hover:bg-[var(--panel2)]">
+    <button data-sw="${a.id}" class="flex flex-1 items-center gap-2 text-left">
+      <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black text-white" style="background:${a.color}">${a.name.slice(0,1).toUpperCase()}</span>
+      <span class="flex-1 text-left">${a.name}</span>${acct&&acct.id===a.id?`<i data-lucide="check" class="h-4 w-4" style="color:${a.color}"></i>`:""}
+    </button>
+    <button data-delete="${a.id}" class="rounded-md p-1 text-[10px] font-black sub hover:text-[var(--hot)]" title="Delete profile">✕</button>
+  </div>`).join("");
   $("acctList").querySelectorAll("[data-sw]").forEach(b=>b.addEventListener("click",()=>switchAccount(b.dataset.sw)));
+  $("acctList").querySelectorAll("[data-delete]").forEach(b=>b.addEventListener("click",(e)=>{ e.stopPropagation(); deleteAccountById(b.dataset.delete); }));
   if(window.lucide) lucide.createIcons();
 }
 $("acctBtn").addEventListener("click",(e)=>{ e.stopPropagation(); renderAcctList(); $("acctMenu").classList.toggle("hidden"); });
 document.addEventListener("click",e=>{ if(!$("acctMenu").contains(e.target)&&!$("acctBtn").contains(e.target)) $("acctMenu").classList.add("hidden"); });
 $("addAcct").addEventListener("click",()=>{ $("acctMenu").classList.add("hidden"); openOnboarding(); });
 $("logoutBtn").addEventListener("click", logout);
+$("clearDataBtn").addEventListener("click", clearCurrentAccountData);
+$("deleteAccountBtn").addEventListener("click", ()=>{ if(acct) deleteAccountById(acct.id); });
 
 function renderHomeSafety(){
   const worst = visibleWaters().slice().sort((a,b)=>b.hgFactor-a.hgFactor)[0];
@@ -1238,16 +1337,9 @@ function renderHomeSafety(){
   if(window.lucide) lucide.createIcons();
 }
 
-let obColor=COLORS[0], obGroup="general";
-function renderObChoosers(){
-  $("obColors").innerHTML=""; COLORS.forEach(c=>{ const b=document.createElement("button"); b.className="h-8 w-8 rounded-full border-2 transition";
-    b.style.background=c+"44"; b.style.borderColor=obColor===c?c:"var(--line)"; if(obColor===c) b.style.boxShadow=`0 0 10px ${c}`;
-    b.addEventListener("click",()=>{ obColor=c; renderObChoosers(); }); $("obColors").appendChild(b); });
-  $("obGroup").innerHTML = GROUPS.map(g=>`<button data-g="${g.id}" class="rounded-lg border px-3 py-2.5 text-left text-xs font-bold ${obGroup===g.id?'':'sub'}" style="border-color:${obGroup===g.id?'var(--accent)':'var(--line)'};background:${obGroup===g.id?'color-mix(in srgb,var(--accent) 10%,transparent)':'transparent'}"><span class="text-base">${g.icon}</span><br/>${g.label}</button>`).join("");
-  $("obGroup").querySelectorAll("[data-g]").forEach(b=>b.addEventListener("click",()=>{ obGroup=b.dataset.g; renderObChoosers(); }));
-}
+let obColor=COLORS[0];
 function openOnboarding(){
-  $("obName").value=""; $("obError").classList.add("hidden"); obColor=COLORS[accounts.length%COLORS.length]; obGroup="general"; renderObChoosers();
+  $("obName").value=""; $("obError").classList.add("hidden"); obColor=COLORS[accounts.length%COLORS.length];
   if(accounts.length){ $("obExisting").classList.remove("hidden");
     $("obAccounts").innerHTML=accounts.map(a=>`<button data-e="${a.id}" class="acct-chip rounded-full border px-3 py-1.5 text-xs font-black" style="border-color:${a.color};color:${a.color}">${a.name.slice(0,1).toUpperCase()} · ${a.name}</button>`).join("");
     $("obAccounts").querySelectorAll("[data-e]").forEach(b=>b.addEventListener("click",()=>{ const a=accounts.find(x=>x.id===b.dataset.e); enterAccount(a); }));
@@ -1256,12 +1348,12 @@ function openOnboarding(){
 }
 $("obSubmit").addEventListener("click",()=>{ const name=$("obName").value.trim();
   if(!name){ $("obError").textContent="Enter a name to fish under."; $("obError").classList.remove("hidden"); return; }
-  const a={ id:"a"+Date.now(), name, color:obColor, group:obGroup }; accounts.push(a); store.set("fishai_accounts",accounts);
+  const a={ id:"a"+Date.now(), name, color:obColor, group:"general" }; accounts.push(a); store.set("fishai_accounts",accounts);
   enterAccount(a); toast(`Profile "${name}" created`,"ok"); });
 $("obName").addEventListener("keydown",e=>{ if(e.key==="Enter") $("obSubmit").click(); });
 
 /* ===================== settings ===================== */
-function openSettings(){ $("settingsBackdrop").classList.remove("hidden"); $("settingsDrawer").classList.remove("closed"); $("keyGemini").value=cfg.gemini; refreshKeyStatus(); if(typeof applyLogo==="function") applyLogo(); }
+function openSettings(){ $("settingsBackdrop").classList.remove("hidden"); $("settingsDrawer").classList.remove("closed"); $("keyGemini").value=cfg.gemini; refreshKeyStatus(); }
 function closeSettings(){ $("settingsBackdrop").classList.add("hidden"); $("settingsDrawer").classList.add("closed"); }
 $("apiRail").addEventListener("click", openSettings);
 $("closeSettings").addEventListener("click", closeSettings);
@@ -1279,42 +1371,8 @@ async function pingProxy(){ if(!cfg.proxy){ proxyOnline=false; updateScanEngine(
 $("saveKeys").addEventListener("click",async()=>{ cfg.gemini=$("keyGemini").value.trim(); store.set("fishai_cfg",cfg);
   updateScanEngine(); refreshKeyStatus(); updateCoachMode(); toast("Saved locally ✓","ok"); closeSettings(); });
 
-/* ===================== app logo ===================== */
-let appLogo = store.get("sunken_logo", null);
-function logoImg(cls){ return `<img src="${appLogo}" class="${cls} h-full w-full object-cover" alt="logo"/>`; }
-function applyLogo(){
-  const header=$("brandHeader"), onb=$("brandOnboard"), prev=$("logoPreview");
-  if(appLogo){
-    if(header) header.innerHTML = logoImg("");
-    if(onb) onb.innerHTML = logoImg("");
-    if(prev) prev.innerHTML = logoImg("");
-    if($("logoStatus")) $("logoStatus").textContent="custom";
-    if($("logoClear")) $("logoClear").classList.remove("hidden");
-  } else {
-    if(header) header.innerHTML = `<i data-lucide="fish" class="h-5 w-5" style="color:var(--accent)"></i>`;
-    if(onb) onb.innerHTML = `<i data-lucide="fish" class="h-6 w-6" style="color:var(--accent)"></i>`;
-    if(prev) prev.innerHTML = `<i data-lucide="fish" class="h-6 w-6" style="color:var(--accent)"></i>`;
-    if($("logoStatus")) $("logoStatus").textContent="default";
-    if($("logoClear")) $("logoClear").classList.add("hidden");
-    if(window.lucide) lucide.createIcons();
-  }
-}
-$("logoInput") && $("logoInput").addEventListener("change", async e=>{
-  const f=e.target.files[0]; if(!f||!f.type.startsWith("image/")){ toast("Choose an image","warn"); return; }
-  try{
-    const img=new Image(); const url=URL.createObjectURL(f);
-    await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=url; });
-    let{width:w,height:h}=img; const s=Math.min(1,256/Math.max(w,h)); w=Math.round(w*s); h=Math.round(h*s);
-    const c=document.createElement("canvas"); c.width=w; c.height=h; c.getContext("2d").drawImage(img,0,0,w,h);
-    URL.revokeObjectURL(url);
-    appLogo=c.toDataURL("image/png"); store.set("sunken_logo",appLogo); applyLogo(); toast("Logo updated ✨","ok");
-  }catch(err){ toast("Couldn't load that image","err"); }
-  e.target.value="";
-});
-$("logoClear") && $("logoClear").addEventListener("click", ()=>{ appLogo=null; store.del("sunken_logo"); applyLogo(); toast("Logo reset","info"); });
-
 /* ===================== boot ===================== */
-applyTheme(); initMap(); renderSpotList(); buildStatsControls(); updateScanEngine(); updateApiRail(); lucide.createIcons(); pingProxy(); applyLogo(); setScanMode("upload");
+applyTheme(); initMap(); renderSpotList(); buildStatsControls(); updateScanEngine(); updateApiRail(); lucide.createIcons(); pingProxy(); setScanMode("upload");
 const resume = accounts.find(a=>a.id===store.get("fishai_active", null));
 if(resume) enterAccount(resume); else openOnboarding();
 </script>
